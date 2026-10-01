@@ -17,10 +17,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key';
 
 // Database Connection Pool
 const db = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: 'Frem5462@zod',
-  database: 'earn_plaza',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || 'Frem5462@zod',
+  database: process.env.DB_NAME || 'earn_plaza',
+  port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
