@@ -1,3 +1,4 @@
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 // src/App.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import DepositModal from './components/DepositModal';
@@ -15,6 +16,7 @@ import AdminDashboard from './components/AdminDashboard';
 import AdvertiserCampaign from './components/AdvertiserCampaign';
 import ReferralCard from './components/ReferralCard';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { API_BASE } from './config';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -88,7 +90,7 @@ export default function App() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/api/auth/me', {
+      fetch(`${API_BASE}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then((res) => {
@@ -121,7 +123,7 @@ export default function App() {
       const token = localStorage.getItem('token');
 
       try {
-        const res = await fetch('http://localhost:5000/api/tasks', {
+        const res = await fetch(`${API_BASE}/api/tasks`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : ''
           }
@@ -161,7 +163,7 @@ export default function App() {
     const token = localStorage.getItem('token');
 
     try {
-      const res = await fetch('http://localhost:5000/api/withdrawals', {
+      const res = await fetch(`${API_BASE}/api/withdrawals`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -384,7 +386,7 @@ export default function App() {
               user_id: currentUserId
             };
 
-            fetch('http://localhost:5000/api/tasks/submit', {
+            fetch(`${API_BASE}/api/tasks/submit`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',

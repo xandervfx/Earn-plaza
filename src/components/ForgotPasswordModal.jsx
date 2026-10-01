@@ -1,6 +1,7 @@
 // src/components/ForgotPasswordModal.jsx
 import React, { useState } from 'react';
 import { Mail, KeyRound, ArrowRight, CheckCircle2, X } from 'lucide-react';
+import { API_BASE } from './config';
 
 export default function ForgotPasswordModal({ isOpen, onClose }) {
   const [step, setStep] = useState(1); // Step 1: Send OTP | Step 2: Reset Password
@@ -21,7 +22,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
     setSuccessMsg('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/forgot-password', {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -46,7 +47,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
     setError('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/reset-password', {
+      const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp, newPassword })

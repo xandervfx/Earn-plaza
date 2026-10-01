@@ -1,8 +1,7 @@
-// ==========================================
 // src/components/AdminModal.jsx
-// ==========================================
 import React, { useState } from 'react';
 import { X, PlusCircle } from 'lucide-react';
+import { API_BASE } from './config';
 
 export default function AdminModal({ isOpen, onClose, onTaskCreated }) {
   const [formData, setFormData] = useState({
@@ -36,7 +35,7 @@ export default function AdminModal({ isOpen, onClose, onTaskCreated }) {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/tasks', {
+      const res = await fetch(`${API_BASE}/api/tasks`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

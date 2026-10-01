@@ -1,6 +1,7 @@
 // src/components/WithdrawalModal.jsx
 import React, { useState, useEffect } from 'react';
 import { X, AlertCircle, Wallet, ArrowRight } from 'lucide-react';
+import { API_BASE } from './config';
 
 const NIGERIAN_BANKS = [
   'Access Bank',
@@ -63,7 +64,7 @@ export default function WithdrawalModal({ isOpen, onClose, user, balance = 0, on
       setIsLoadingReferrals(true);
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch('http://localhost:5000/api/user/referrals', {
+        const res = await fetch(`${API_BASE}/api/withdrawals`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {

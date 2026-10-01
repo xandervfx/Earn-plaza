@@ -1,6 +1,7 @@
 // // src/components/DailyCheckinCard.jsx
 // import React, { useState } from 'react';
 // import { Flame, Check, Lock } from 'lucide-react';
+// import { API_BASE } from './config';
 
 // export default function DailyCheckinCard({ user, onRewardClaimed }) {
 //   const [loading, setLoading] = useState(false);
@@ -15,7 +16,7 @@
 //   if (!userId) return;
 //   setLoading(true);
 
-//   fetch('http://localhost:5000/api/user/daily-checkin', {
+//   fetch(`${API_BASE}/api/user/daily-checkin`, {
 //     method: 'POST',
 //     headers: { 'Content-Type': 'application/json' },
 //     body: JSON.stringify({ userId })

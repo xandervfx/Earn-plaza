@@ -1,6 +1,7 @@
 // src/components/ReferralCard.jsx
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Users, Gift } from 'lucide-react';
+import { API_BASE } from './config';
 
 export default function ReferralCard({ user }) {
   const [copied, setCopied] = useState(false);
@@ -17,7 +18,7 @@ export default function ReferralCard({ user }) {
       if (!token) return;
 
       try {
-        const res = await fetch('http://localhost:5000/api/user/referrals', {
+        const res = await fetch(`${API_BASE}/api/user/referrals`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

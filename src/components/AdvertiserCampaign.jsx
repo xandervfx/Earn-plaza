@@ -3,6 +3,7 @@
 // ==========================================
 import React, { useState } from 'react';
 import { Megaphone } from 'lucide-react';
+import { API_BASE } from './config';
 
 export default function AdvertiserCampaign({ user, onBackToSite, onCampaignCreated }) {
   const [formData, setFormData] = useState({
@@ -31,7 +32,7 @@ export default function AdvertiserCampaign({ user, onBackToSite, onCampaignCreat
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/advertiser/create-task', {
+      const res = await fetch(`${API_BASE}/api/advertiser/create-task`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
