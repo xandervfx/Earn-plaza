@@ -1,4 +1,3 @@
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 // src/App.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import DepositModal from './components/DepositModal';
