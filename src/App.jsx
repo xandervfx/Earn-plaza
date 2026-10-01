@@ -15,7 +15,7 @@ import AdminDashboard from './components/AdminDashboard';
 import AdvertiserCampaign from './components/AdvertiserCampaign';
 import ReferralCard from './components/ReferralCard';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
-import { API_BASE } from './config';
+import { API_BASE } from './components/config';
 
 export default function App() {
   const [user, setUser] = useState(null);
