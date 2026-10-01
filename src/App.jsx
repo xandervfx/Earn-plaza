@@ -22,8 +22,8 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isAdminView, setIsAdminView] = useState(window.location.hash === '#admin');
-  const [isAdvertiserView, setIsAdvertiserView] = useState(window.location.hash === '#advertiser');
+  const [isAdminView, setIsAdminView] = useState(window.location.hash === '#vfx-adminmajor363');
+  const [isAdvertiserView, setIsAdvertiserView] = useState(window.location.hash === '#vfx-advertiser');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Notification Toast State
