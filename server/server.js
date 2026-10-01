@@ -8,6 +8,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
@@ -738,7 +739,13 @@ app.post('/api/admin/withdrawals/:id/action', verifyToken, verifyAdmin, async (r
     connection.release();
   }
 });
-
+// --- SERVE FRONTEND IN PRODUCTION ---
+// Serve the static files from the React app
+app.use(express.static(path.join(__dirname, 'dist')));
+// Handles any requests that don't match the API routes above
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 // --- LISTEN ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
