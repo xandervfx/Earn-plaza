@@ -743,7 +743,7 @@ app.post('/api/admin/withdrawals/:id/action', verifyToken, verifyAdmin, async (r
 // Serve the static files from the React app
 app.use(express.static(path.join(__dirname, 'dist')));
 // Handles any requests that don't match the API routes above
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 // --- LISTEN ---
