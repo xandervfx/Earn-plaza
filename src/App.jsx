@@ -64,8 +64,10 @@ export default function App() {
     if (!token) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/user/earnings-history/${id}`, {
-        headers: {
+
+const res = await fetch(`/api/user/earnings-history/${id}`, {
+  headers: {
+
           'Authorization': `Bearer ${token}`
         }
       });
