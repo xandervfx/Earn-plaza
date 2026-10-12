@@ -45,9 +45,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, onOpenForgo
 
     setIsLoading(true);
 
-    const endpoint = mode === 'register' 
-      ? 'http://localhost:5000/api/auth/register' 
-      : 'http://localhost:5000/api/auth/login';
+ 
+const endpoint = mode === 'register'
+  ? '/api/auth/register'
+  : '/api/auth/login';
 
     try {
       const response = await fetch(endpoint, {
