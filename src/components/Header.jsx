@@ -1,65 +1,84 @@
+```jsx
 // src/components/Header.jsx
 import React from 'react';
 
-export default function Header({ 
-  user, 
-  balance, 
-  onOpenWithdraw, 
-  onOpenDeposit, 
-  onOpenAuth, 
-  onOpenAdvertiser, 
-  onLogout 
+export default function Header({
+  user,
+  balance,
+  onOpenWithdraw,
+  onOpenDeposit,
+  onOpenAuth,
+  onOpenAdvertiser,
+  onLogout
 }) {
   return (
-    <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-      {/* Logo / Brand */}
-      <div className="font-black text-xl tracking-wide text-white cursor-pointer" onClick={() => window.location.hash = ''}>
-        Earn<span className="text-emerald-400">Plaza</span>
-      </div>
+    <header className="w-full max-w-full min-w-0 overflow-x-clip bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-4">
+      <div className="w-full min-w-0 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
 
-      {/* Navigation / User Controls */}
-      <div className="flex items-center gap-3">
-        {user ? (
-          <>
-            {/* Wallet Balance Display */}
-            <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-semibold">Balance:</span>
-              <span className="text-sm font-bold text-emerald-400">${Number(balance).toFixed(2)}</span>
-            </div>
+        {/* Logo / Brand */}
+        <div
+          className="font-black text-xl tracking-wide text-white cursor-pointer shrink-0 self-start"
+          onClick={() => {
+            window.location.hash = '';
+          }}
+        >
+          Earn<span className="text-emerald-400">Plaza</span>
+        </div>
 
-            {/* + Deposit Button */}
+        {/* Navigation / User Controls */}
+        <div className="w-full min-w-0 flex flex-wrap items-center gap-2 sm:gap-3">
+          {user ? (
+            <>
+              {/* Wallet Balance */}
+              <div className="min-w-0 flex items-center gap-2 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">
+                  Balance:
+                </span>
+                <span className="text-sm font-bold text-emerald-400 whitespace-nowrap">
+                  ${Number(balance || 0).toFixed(2)}
+                </span>
+              </div>
+
+              {/* Deposit */}
+              <button
+                type="button"
+                onClick={onOpenDeposit}
+                className="shrink-0 text-xs font-bold px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/10 cursor-pointer"
+              >
+                + Deposit
+              </button>
+
+              {/* Withdraw */}
+              <button
+                type="button"
+                onClick={onOpenWithdraw}
+                className="shrink-0 text-xs font-bold px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition border border-slate-700 cursor-pointer"
+              >
+                Withdraw
+              </button>
+
+              {/* Logout */}
+              <button
+                type="button"
+                onClick={onLogout}
+                className="shrink-0 text-xs text-slate-400 hover:text-rose-400 transition font-semibold cursor-pointer px-2 py-2"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
             <button
-              onClick={onOpenDeposit}
-              className="text-xs font-bold px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/10 cursor-pointer"
+              type="button"
+              onClick={onOpenAuth}
+              className="shrink-0 text-xs font-bold px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition cursor-pointer"
             >
-              + Deposit
+              Sign In / Register
             </button>
+          )}
+        </div>
 
-            {/* Withdraw Button */}
-            <button
-              onClick={onOpenWithdraw}
-              className="text-xs font-bold px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition border border-slate-700 cursor-pointer"
-            >
-              Withdraw
-            </button>
-
-            {/* Logout Button */}
-            <button
-              onClick={onLogout}
-              className="text-xs text-slate-400 hover:text-rose-400 transition ml-2 font-semibold cursor-pointer"
-            >
-              Logout
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={onOpenAuth}
-            className="text-xs font-bold px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition cursor-pointer"
-          >
-            Sign In / Register
-          </button>
-        )}
       </div>
     </header>
   );
 }
+```
