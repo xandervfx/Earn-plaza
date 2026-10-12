@@ -9,12 +9,13 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
-  "dependencies": {
-    "express": "^5.1.0",
-    "lucide-react": "^1.28.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
-  },
+"dependencies": {
+  "express": "^5.1.0",
+  "mysql2": "^3.14.0",
+  "lucide-react": "^1.28.0",
+  "react": "^19.2.8",
+  "react-dom": "^19.2.8"
+},
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.3",
