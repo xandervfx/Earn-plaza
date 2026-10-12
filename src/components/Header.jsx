@@ -1,5 +1,3 @@
-```jsx
-// src/components/Header.jsx
 import React from 'react';
 
 export default function Header({
@@ -12,10 +10,9 @@ export default function Header({
   onLogout
 }) {
   return (
-    <header className="w-full max-w-full min-w-0 overflow-x-clip bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-4">
+    <header className="w-full max-w-full min-w-0 bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-4">
       <div className="w-full min-w-0 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-
-        {/* Logo / Brand */}
+        {/* Logo */}
         <div
           className="font-black text-xl tracking-wide text-white cursor-pointer shrink-0 self-start"
           onClick={() => {
@@ -25,11 +22,11 @@ export default function Header({
           Earn<span className="text-emerald-400">Plaza</span>
         </div>
 
-        {/* Navigation / User Controls */}
+        {/* Navigation and user controls */}
         <div className="w-full min-w-0 flex flex-wrap items-center gap-2 sm:gap-3">
           {user ? (
             <>
-              {/* Wallet Balance */}
+              {/* Balance */}
               <div className="min-w-0 flex items-center gap-2 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800">
                 <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">
                   Balance:
@@ -43,7 +40,7 @@ export default function Header({
               <button
                 type="button"
                 onClick={onOpenDeposit}
-                className="shrink-0 text-xs font-bold px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/10 cursor-pointer"
+                className="shrink-0 text-xs font-bold px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition cursor-pointer"
               >
                 + Deposit
               </button>
@@ -76,9 +73,7 @@ export default function Header({
             </button>
           )}
         </div>
-
       </div>
     </header>
   );
 }
-```
