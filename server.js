@@ -336,184 +336,117 @@ app.post('/api/tasks/submit', verifyToken, async (req, res) => {
 });
 
 
- // --- DEPOSIT & CAMPAIGN ROUTES ---
+// --- DEPOSIT & CAMPAIGN ROUTES ---
 
-// Submit a deposit request.
-// Deposits remain pending until an admin approves them.
-app.post(
-  ['/api/user/deposit', '/api/user/deposits', '/api/deposits'],
-  verifyToken,
-  async (req, res) => {
-    const { amount, reference, referenceId, paymentMethod } = req.body;
-    const depositAmount = Number(amount);
+// POST /api/user/deposit (and aliases)
+app.post(['/api/user/deposit', '/api/user/deposits', '/api/deposits'], verifyToken, async (req, res) => {
+  const { amount, reference, referenceId, paymentMethod } = req.body;
+  const depositAmount = parseFloat(amount);
 
-    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid deposit amount.'
-      });
-    }
-
-    const txRef =
-      reference ||
-      referenceId ||
-      `DEP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-    const method = paymentMethod || 'Bank Transfer';
-
-    try {
-      const [result] = await db.query(
-        `INSERT INTO deposits
-          (user_id, amount, payment_method, reference, status)
-         VALUES (?, ?, ?, ?, 'pending')`,
-        [req.user.id, depositAmount, method, txRef]
-      );
-
-      return res.status(201).json({
-        success: true,
-        message: 'Deposit request submitted successfully! Awaiting approval.',
-        depositId: result.insertId,
-        reference: txRef,
-        status: 'pending'
-      });
-    } catch (err) {
-      console.error('Deposit request error:', err);
-
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to process deposit request.'
-      });
-    }
+  if (isNaN(depositAmount) || depositAmount <= 0) {
+    return res.status(400).json({ error: 'Invalid deposit amount.' });
   }
-);
 
+  const txRef = reference || referenceId || `DEP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const method = paymentMethod || 'Bank Transfer';
 
-// Get all deposits for the admin panel.
-// Pending requests appear first.
-app.get(
-  '/api/admin/deposits',
-  verifyToken,
-  verifyAdmin,
-  async (req, res) => {
-    try {
-      const [deposits] = await db.query(`
-        SELECT
-          d.*,
-          u.name AS user_name,
-          u.email AS user_email
-        FROM deposits d
-        LEFT JOIN users u ON u.id = d.user_id
-        ORDER BY
-          CASE
-            WHEN d.status = 'pending' THEN 0
-            ELSE 1
-          END,
-          d.id DESC
-      `);
+  try {
+    const [result] = await db.query(
+      'INSERT INTO deposits (user_id, amount, payment_method, reference, status) VALUES (?, ?, ?, ?, "pending")',
+      [req.user.id, depositAmount, method, txRef]
+    );
 
-      return res.json(deposits);
-    } catch (err) {
-      console.error('Fetch admin deposits error:', err);
-
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to fetch deposits.'
-      });
-    }
+    return res.json({
+      success: true,
+      message: 'Deposit request submitted successfully! Awaiting approval.',
+      depositId: result.insertId,
+      reference: txRef
+    });
+  } catch (err) {
+    console.error('Deposit request error:', err);
+    return res.status(500).json({ error: 'Failed to process deposit request.' });
   }
-);
+});
 
+// GET /api/admin/deposits
+// Fetch deposit requests for the admin panel
+app.get('/api/admin/deposits', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const [deposits] = await db.query(`
+      SELECT
+        d.*,
+        u.name AS user_name,
+        u.email AS user_email
+      FROM deposits d
+      LEFT JOIN users u ON d.user_id = u.id
+      ORDER BY d.created_at DESC
+    `);
 
-// Approve or reject a deposit.
-// A user's balance is credited only after approval.
-app.post(
-  '/api/admin/deposits/:id/action',
-  verifyToken,
-  verifyAdmin,
-  async (req, res) => {
-    const depositId = req.params.id;
-    const { action } = req.body;
+    console.log(`Admin deposits fetched: ${deposits.length}`);
 
-    if (!['approve', 'reject'].includes(action)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid action specified.'
-      });
+    return res.status(200).json(deposits);
+  } catch (err) {
+    console.error('Fetch admin deposits error:', err);
+
+    return res.status(500).json({
+      error: 'Failed to fetch deposit requests.'
+    });
+  }
+});
+
+// POST /api/admin/deposits/:id/action
+app.post('/api/admin/deposits/:id/action', verifyToken, verifyAdmin, async (req, res) => {
+  const depositId = req.params.id;
+  const { action } = req.body;
+
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [deposits] = await connection.query(
+      'SELECT * FROM deposits WHERE id = ? AND status = "pending" FOR UPDATE',
+      [depositId]
+    );
+
+    if (deposits.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Pending deposit request not found.' });
     }
 
-    let connection;
+    const deposit = deposits[0];
+    const refCode = deposit.reference || deposit.reference_id || deposit.proof || 'N/A';
 
-    try {
-      connection = await db.getConnection();
-      await connection.beginTransaction();
-
-      const [deposits] = await connection.query(
-        `SELECT *
-         FROM deposits
-         WHERE id = ? AND status = 'pending'
-         FOR UPDATE`,
+    if (action === 'approve') {
+      // 1. Update deposit record status
+      await connection.query(
+        'UPDATE deposits SET status = "approved" WHERE id = ?',
         [depositId]
       );
 
-      if (deposits.length === 0) {
-        await connection.rollback();
-
-        return res.status(404).json({
-          success: false,
-          error: 'Pending deposit request not found.'
-        });
-      }
-
-      const deposit = deposits[0];
-
-      if (action === 'approve') {
-        // Mark the deposit as approved.
-        await connection.query(
-          `UPDATE deposits
-           SET status = 'approved'
-           WHERE id = ?`,
-          [depositId]
-        );
-
-        // Credit the user's balance once the deposit is approved.
-        await connection.query(
-          `UPDATE users
-           SET balance = balance + ?
-           WHERE id = ?`,
-          [deposit.amount, deposit.user_id]
-        );
-
-        // Record the completed deposit transaction.
-        const refCode =
-          deposit.reference ||
-          deposit.reference_id ||
-          deposit.proof ||
-          'N/A';
-
-        await connection.query(
-          `INSERT INTO transactions
-            (user_id, type, amount, description, status)
-           VALUES (?, 'deposit', ?, ?, 'completed')`,
-          [
-            deposit.user_id,
-            deposit.amount,
-            `Wallet Deposit (Ref: ${refCode})`
-          ]
-        );
-
-        await connection.commit();
-
-        return res.json({
-          success: true,
-          message: 'Deposit approved and balance credited!'
-        });
-      }
-
-      // Reject the deposit without crediting the user's balance.
+      // 2. Increase user balance
       await connection.query(
-        `UPDATE deposits
-         SET status = 'rejected'
-         WHERE id = ?`,
+        'UPDATE users SET balance = balance + ? WHERE id = ?',
+        [deposit.amount, deposit.user_id]
+      );
+
+      // 3. Log completed transaction
+      await connection.query(
+        'INSERT INTO transactions (user_id, type, amount, description, status) VALUES (?, "deposit", ?, ?, "completed")',
+        [deposit.user_id, deposit.amount, `Wallet Deposit (Ref: ${refCode})`]
+      );
+
+      await connection.commit();
+
+      return res.json({
+        success: true,
+        message: 'Deposit approved and balance credited!'
+      });
+
+    } else if (action === 'reject') {
+      // 1. Mark deposit as rejected
+      await connection.query(
+        'UPDATE deposits SET status = "rejected" WHERE id = ?',
         [depositId]
       );
 
@@ -523,24 +456,150 @@ app.post(
         success: true,
         message: 'Deposit request rejected.'
       });
-    } catch (err) {
-      if (connection) {
-        await connection.rollback();
-      }
 
-      console.error('Deposit action error:', err);
+    } else {
+      await connection.rollback();
 
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to process deposit action.'
+      return res.status(400).json({
+        error: 'Invalid action specified.'
       });
-    } finally {
-      if (connection) {
-        connection.release();
-      }
     }
+
+  } catch (err) {
+    await connection.rollback();
+    console.error('Deposit action error:', err);
+
+    return res.status(500).json({
+      error: 'Failed to process deposit action.'
+    });
+  } finally {
+    connection.release();
   }
-);
+});
+
+// --- SUBMISSIONS MANAGEMENT ROUTES ---
+
+app.get('/api/admin/submissions', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const [submissions] = await db.query(
+      `SELECT
+         s.*,
+         t.title AS task_title,
+         t.reward,
+         u.name AS user_name,
+         u.email AS user_email
+       FROM task_submissions s
+       JOIN tasks t ON s.task_id = t.id
+       JOIN users u ON s.user_id = u.id
+       ORDER BY s.created_at DESC`
+    );
+
+    return res.json(submissions);
+  } catch (err) {
+    console.error('Fetch admin submissions error:', err);
+
+    return res.status(500).json({
+      error: 'Failed to fetch task submissions.'
+    });
+  }
+});
+
+app.post('/api/admin/submissions/:id/action', verifyToken, verifyAdmin, async (req, res) => {
+  const submissionId = req.params.id;
+  const { action } = req.body;
+
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [subs] = await connection.query(
+      `SELECT s.*, t.title, t.reward
+       FROM task_submissions s
+       JOIN tasks t ON s.task_id = t.id
+       WHERE s.id = ?
+       FOR UPDATE`,
+      [submissionId]
+    );
+
+    if (subs.length === 0) {
+      await connection.rollback();
+
+      return res.status(404).json({
+        error: 'Submission not found.'
+      });
+    }
+
+    const sub = subs[0];
+
+    if (sub.status !== 'pending') {
+      await connection.rollback();
+
+      return res.status(400).json({
+        error: `Submission is already ${sub.status}.`
+      });
+    }
+
+    if (action === 'approve') {
+      await connection.query(
+        'UPDATE task_submissions SET status = "approved" WHERE id = ?',
+        [submissionId]
+      );
+
+      await connection.query(
+        'UPDATE users SET balance = balance + ? WHERE id = ?',
+        [sub.reward, sub.user_id]
+      );
+
+      await connection.query(
+        'INSERT INTO transactions (user_id, type, amount, description, status) VALUES (?, "earning", ?, ?, "completed")',
+        [sub.user_id, sub.reward, `Earned from task: ${sub.title}`]
+      );
+
+      await connection.commit();
+
+      return res.json({
+        success: true,
+        message: 'Submission approved and user credited!'
+      });
+
+    } else if (action === 'reject') {
+      await connection.query(
+        'UPDATE task_submissions SET status = "rejected" WHERE id = ?',
+        [submissionId]
+      );
+
+      await connection.query(
+        'UPDATE tasks SET slots_claimed = GREATEST(0, slots_claimed - 1) WHERE id = ?',
+        [sub.task_id]
+      );
+
+      await connection.commit();
+
+      return res.json({
+        success: true,
+        message: 'Submission rejected.'
+      });
+
+    } else {
+      await connection.rollback();
+
+      return res.status(400).json({
+        error: 'Invalid action.'
+      });
+    }
+
+  } catch (err) {
+    await connection.rollback();
+    console.error('Admin submission action error:', err);
+
+    return res.status(500).json({
+      error: 'Server error processing submission action.'
+    });
+  } finally {
+    connection.release();
+  }
+});
 
 
 // --- REFERRALS ROUTES ---
