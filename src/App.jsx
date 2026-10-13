@@ -1,4 +1,4 @@
-// src/App.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import DepositModal from './components/DepositModal';
 import Header from './components/Header';
@@ -14,6 +14,7 @@ import LandingPage from './components/LandingPage';
 import AdminDashboard from './components/AdminDashboard';
 import AdvertiserCampaign from './components/AdvertiserCampaign';
 import ReferralCard from './components/ReferralCard';
+import ProfileModal from './components/ProfileModal';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { API_BASE } from './components/config';
 
@@ -23,12 +24,20 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isAdminView, setIsAdminView] = useState(window.location.hash === '#vfx-adminmajor363');
-  const [isAdvertiserView, setIsAdvertiserView] = useState(window.location.hash === '#vfx-advertiser');
+  const [isAdminView, setIsAdminView] = useState(
+    window.location.hash === '#vfx-adminmajor363'
+  );
+  const [isAdvertiserView, setIsAdvertiserView] = useState(
+    window.location.hash === '#vfx-advertiser'
+  );
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Notification Toast State
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [toast, setToast] = useState({
+    show: false,
+    message: '',
+    type: 'success'
+  });
 
   // Modals state
   const [activeTask, setActiveTask] = useState(null);
@@ -36,10 +45,12 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [isDepositOpen, setIsDepositOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // Toast Trigger Helper
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
+
     setTimeout(() => {
       setToast({ show: false, message: '', type: 'success' });
     }, 4000);
@@ -51,7 +62,9 @@ export default function App() {
       setIsAdminView(window.location.hash === '#admin');
       setIsAdvertiserView(window.location.hash === '#advertiser');
     };
+
     window.addEventListener('hashchange', handleHashChange);
+
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
@@ -64,15 +77,16 @@ export default function App() {
     if (!token) return;
 
     try {
-
-const res = await fetch(`/api/user/earnings-history/${id}`, {
-  headers: {
-
-          'Authorization': `Bearer ${token}`
+      const res = await fetch(`/api/user/earnings-history/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
       });
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
       const historyData = await res.json();
 
       if (Array.isArray(historyData)) {
@@ -80,6 +94,7 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
           ...item,
           _uniqueKey: `tx-${item.id || item.transaction_id || 'item'}-${idx}`
         }));
+
         setTransactions(formattedHistory);
       }
     } catch (err) {
@@ -90,20 +105,27 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
   // Restore user session on mount
   useEffect(() => {
     const token = localStorage.getItem('token');
+
     if (token) {
       fetch(`${API_BASE}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       })
         .then((res) => {
-          if (!res.ok) throw new Error('Token expired or invalid');
+          if (!res.ok) {
+            throw new Error('Token expired or invalid');
+          }
+
           return res.json();
         })
         .then((data) => {
           if (data.user) {
             setUser(data.user);
             setBalance(Number(data.user.balance) || 0.00);
-            
+
             const userId = data.user.id || data.user.user_id;
+
             if (userId) {
               fetchTransactions(userId);
             }
@@ -126,7 +148,7 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
       try {
         const res = await fetch(`${API_BASE}/api/tasks`, {
           headers: {
-            'Authorization': token ? `Bearer ${token}` : ''
+            Authorization: token ? `Bearer ${token}` : ''
           }
         });
 
@@ -134,8 +156,11 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
 
         if (isMounted && res.ok && Array.isArray(data)) {
           const uniqueTasks = data.filter((task, index, self) =>
-            index === self.findIndex((t) => (t.id || index) === (task.id || index))
+            index === self.findIndex(
+              (t) => (t.id || index) === (task.id || index)
+            )
           );
+
           setTasks(uniqueTasks);
         }
       } catch (err) {
@@ -161,28 +186,30 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
   // Handle Cashout Request Sync
   const handleWithdrawSuccess = async ({ amount, method, accountDetails }) => {
     if (!user) return;
+
     const token = localStorage.getItem('token');
 
     try {
       const res = await fetch(`${API_BASE}/api/withdrawals`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           amount,
           paymentMethod: method,
-          accountDetails: accountDetails,
-        }),
+          accountDetails
+        })
       });
 
       const responseText = await res.text();
       let data = {};
+
       try {
         data = responseText ? JSON.parse(responseText) : {};
       } catch (e) {
-        throw new Error("Server returned an invalid response.");
+        throw new Error('Server returned an invalid response.');
       }
 
       if (!res.ok) {
@@ -190,30 +217,36 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
       }
 
       setBalance((prev) => Math.max(0, prev - amount));
+
       const userId = user.id || user.user_id;
-      if (userId) fetchTransactions(userId);
+
+      if (userId) {
+        fetchTransactions(userId);
+      }
+
       showToast('Withdrawal request submitted successfully!', 'success');
       setIsWithdrawOpen(false);
-
     } catch (err) {
       console.error('Failed to withdraw:', err);
       showToast(`Error: ${err.message}`, 'error');
     }
   };
-  
 
   // Auth Handlers
   const handleLoginSuccess = (userData, token) => {
     if (token) {
       localStorage.setItem('token', token);
     }
+
     setUser(userData);
     setBalance(Number(userData.balance) || 0.00);
-    
+
     const userId = userData.id || userData.user_id;
+
     if (userId) {
       fetchTransactions(userId);
     }
+
     showToast(`Welcome back, ${userData.name || 'User'}!`, 'success');
   };
 
@@ -221,14 +254,36 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
     setUser(null);
     setBalance(0.00);
     setTransactions([]);
+    setIsProfileOpen(false);
     localStorage.removeItem('token');
     showToast('Logged out successfully.', 'success');
+  };
+
+  // Handle updated profile details
+  const handleProfileUpdated = (updatedProfile) => {
+    setUser((previousUser) => {
+      if (!previousUser) return previousUser;
+
+      return {
+        ...previousUser,
+        ...updatedProfile
+      };
+    });
+
+    if (updatedProfile.balance !== undefined) {
+      setBalance(Number(updatedProfile.balance) || 0);
+    }
+
+    showToast('Profile updated successfully!', 'success');
   };
 
   // Filter tasks based on active category selection
   const filteredTasks = selectedCategory === 'all'
     ? tasks
-    : tasks.filter(task => (task.category || '').toLowerCase() === selectedCategory.toLowerCase());
+    : tasks.filter(
+        (task) =>
+          (task.category || '').toLowerCase() === selectedCategory.toLowerCase()
+      );
 
   // Dedicated Admin Hash View (#admin)
   if (isAdminView) {
@@ -256,6 +311,7 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
           if (newCampaign) {
             handleTaskCreated(newCampaign);
           }
+
           window.location.hash = '';
         }}
       />
@@ -264,23 +320,27 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white antialiased font-sans relative pb-12">
-      
+
       {/* Dynamic Toast Feedback Banner */}
       {toast.show && (
         <div className="fixed bottom-5 right-5 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold ${
-            toast.type === 'error' 
-              ? 'bg-rose-950/90 text-rose-300 border-rose-800' 
-              : 'bg-emerald-950/90 text-emerald-300 border-emerald-800'
-          }`}>
-            {toast.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+          <div
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold ${
+              toast.type === 'error'
+                ? 'bg-rose-950/90 text-rose-300 border-rose-800'
+                : 'bg-emerald-950/90 text-emerald-300 border-emerald-800'
+            }`}
+          >
+            {toast.type === 'error'
+              ? <AlertCircle className="w-4 h-4 shrink-0" />
+              : <CheckCircle2 className="w-4 h-4 shrink-0" />}
             <span>{toast.message}</span>
           </div>
         </div>
       )}
 
       {!user ? (
-        <LandingPage 
+        <LandingPage
           onOpenLogin={() => setIsAuthOpen(true)}
           onOpenRegister={() => setIsAuthOpen(true)}
         />
@@ -291,8 +351,11 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
             balance={balance}
             onOpenWithdraw={() => setIsWithdrawOpen(true)}
             onOpenAuth={() => setIsAuthOpen(true)}
-            onOpenDeposit={() => setIsDepositOpen(true)} // <--- ADD THIS
-            onOpenAdvertiser={() => { window.location.hash = '#advertiser'; }}
+            onOpenDeposit={() => setIsDepositOpen(true)}
+            onOpenProfile={() => setIsProfileOpen(true)}
+            onOpenAdvertiser={() => {
+              window.location.hash = '#advertiser';
+            }}
             onLogout={handleLogout}
           />
 
@@ -304,17 +367,24 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-10">
               <div>
-                <h3 className="text-xl font-black text-white">Active Task Queue</h3>
-                <p className="text-xs text-slate-400">Select a micro-task below to complete and earn instantly.</p>
+                <h3 className="text-xl font-black text-white">
+                  Active Task Queue
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Select a micro-task below to complete and earn instantly.
+                </p>
               </div>
 
               <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => { window.location.hash = '#advertiser'; }}
+                  onClick={() => {
+                    window.location.hash = '#advertiser';
+                  }}
                   className="text-xs font-bold px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/10 cursor-pointer"
                 >
                   + Create Campaign
                 </button>
+
                 {user?.role === 'admin' && (
                   <button
                     onClick={() => setIsAdminOpen(true)}
@@ -323,6 +393,7 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
                     + Post Task (Admin)
                   </button>
                 )}
+
                 <span className="text-xs font-bold px-3 py-1.5 bg-slate-900 border border-slate-800 text-emerald-400 rounded-xl">
                   {filteredTasks.length} Available
                 </span>
@@ -331,47 +402,47 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
 
             {/* Category Filter Pills */}
             <div className="flex gap-2 my-4 overflow-x-auto pb-2 scrollbar-none">
-              {['all', 'social', 'app_test', 'engagement', 'surveys'].map((cat, idx) => (
-                <button
-                  key={`cat-pill-${cat}-${idx}`}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer border ${
-                    selectedCategory === cat 
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20' 
-                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
-                  }`}
-                >
-                  {cat.replace('_', ' ')}
-                </button>
-              ))}
+              {['all', 'social', 'app_test', 'engagement', 'surveys'].map(
+                (cat, idx) => (
+                  <button
+                    key={`cat-pill-${cat}-${idx}`}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer border ${
+                      selectedCategory === cat
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20'
+                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    {cat.replace('_', ' ')}
+                  </button>
+                )
+              )}
             </div>
 
             {/* Task Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredTasks.map((task, index) => (
-                <TaskCard 
-                  key={`main-task-card-${task.id || 'no-id'}-${index}`} 
-                  task={task} 
-                  onClick={() => setActiveTask(task)} 
+                <TaskCard
+                  key={`main-task-card-${task.id || 'no-id'}-${index}`}
+                  task={task}
+                  onClick={() => setActiveTask(task)}
                 />
               ))}
             </div>
 
             {/* Unified Transaction & Earnings Ledger */}
             <div className="mt-10">
-              <TransactionLedger 
-                transactions={transactions} 
-              />
+              <TransactionLedger transactions={transactions} />
             </div>
           </main>
         </>
       )}
 
-      {/* MODALS */}
+      {/* Task Modal */}
       {activeTask && (
-        <TaskModal 
-          task={activeTask} 
-          onClose={() => setActiveTask(null)} 
+        <TaskModal
+          task={activeTask}
+          onClose={() => setActiveTask(null)}
           onSubmitSuccess={(task, proof) => {
             const token = localStorage.getItem('token');
             const targetTaskId = task.id || task.task_id || task._id;
@@ -380,7 +451,7 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
             const submissionPayload = {
               taskId: targetTaskId,
               task_id: targetTaskId,
-              proof: proof,
+              proof,
               proofUrl: proof,
               proof_data: proof,
               userId: currentUserId,
@@ -389,26 +460,42 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
 
             fetch(`${API_BASE}/api/tasks/submit`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                Authorization: `Bearer ${token}`
               },
               body: JSON.stringify(submissionPayload)
             })
               .then(async (res) => {
                 const data = await res.json();
+
                 if (!res.ok || data.error) {
-                  throw new Error(data.error || data.message || 'Submission failed');
+                  throw new Error(
+                    data.error || data.message || 'Submission failed'
+                  );
                 }
+
                 return data;
               })
-              .then(data => {
-                showToast(data.message || 'Proof submitted successfully for verification!', 'success');
-                if (currentUserId) fetchTransactions(currentUserId);
-                setTasks(prev => prev.filter(t => (t.id || t.task_id) !== targetTaskId));
+              .then((data) => {
+                showToast(
+                  data.message || 'Proof submitted successfully for verification!',
+                  'success'
+                );
+
+                if (currentUserId) {
+                  fetchTransactions(currentUserId);
+                }
+
+                setTasks((prev) =>
+                  prev.filter(
+                    (t) => (t.id || t.task_id) !== targetTaskId
+                  )
+                );
+
                 setActiveTask(null);
               })
-              .catch(err => {
+              .catch((err) => {
                 console.error('Task submission error:', err);
                 showToast(`Submission Error: ${err.message}`, 'error');
               });
@@ -416,6 +503,7 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
         />
       )}
 
+      {/* Withdrawal Modal */}
       {isWithdrawOpen && (
         <WithdrawalModal
           user={user}
@@ -426,6 +514,7 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
         />
       )}
 
+      {/* Authentication Modal */}
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
@@ -436,22 +525,32 @@ const res = await fetch(`/api/user/earnings-history/${id}`, {
         }}
       />
 
-      {/* MODALS */}
-<DepositModal
-  isOpen={isDepositOpen}
-  onClose={() => setIsDepositOpen(false)}
-/>
+      {/* Deposit Modal */}
+      <DepositModal
+        isOpen={isDepositOpen}
+        onClose={() => setIsDepositOpen(false)}
+      />
 
+      {/* Admin Modal */}
       <AdminModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
         onTaskCreated={handleTaskCreated}
       />
 
+      {/* Forgot Password Modal */}
       <ForgotPasswordModal
         isOpen={isForgotPasswordOpen}
         onClose={() => setIsForgotPasswordOpen(false)}
         onSwitchToLogin={() => setIsAuthOpen(true)}
+      />
+
+      {/* Profile Modal */}
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={user}
+        onProfileUpdated={handleProfileUpdated}
       />
     </div>
   );
