@@ -1,6 +1,3 @@
-// ==========================================
-// COMPLETE BACKEND CODE (server.js)
-// ==========================================
 
 const express = require('express');
 const mysql = require('mysql2/promise');
@@ -16,7 +13,6 @@ app.use(cors());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key';
 
-// Database Connection Pool
 const db = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
@@ -28,7 +24,6 @@ const db = mysql.createPool({
   queueLimit: 0
 });
 
-// Configure Nodemailer
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -46,9 +41,7 @@ const verifyToken = (req, res, next) => {
   }
 
   try {
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    req.user = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token.' });
@@ -59,10 +52,9 @@ const optionalToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
-      const token = authHeader.split(' ')[1];
-      req.user = jwt.verify(token, JWT_SECRET);
+      req.user = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
     } catch (err) {
-      // Ignore token errors for public queries
+      // Ignore token errors for public queries.
     }
   }
   next();
@@ -70,10 +62,15 @@ const optionalToken = (req, res, next) => {
 
 const verifyAdmin = async (req, res, next) => {
   try {
-    const [users] = await db.query('SELECT role FROM users WHERE id = ?', [req.user.id]);
-    if (users.length === 0 || users[0].role !== 'admin') {
+    const [users] = await db.query(
+      'SELECT role FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
+    if (!users.length || users[0].role !== 'admin') {
       return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
     }
+
     next();
   } catch (err) {
     res.status(500).json({ error: 'Failed to verify admin status.' });
@@ -85,44 +82,66 @@ const verifyAdmin = async (req, res, next) => {
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password, referralCode } = req.body;
+
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
-    if (existing.length > 0) {
+    if (String(password).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+
+    const [existing] = await db.query(
+      'SELECT id FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (existing.length) {
       return res.status(400).json({ error: 'Email already registered.' });
     }
 
-    // 1. Generate unique referral code for the NEW user (e.g. john1234)
-    const myReferralCode = name.toLowerCase().replace(/\s+/g, '') + Math.floor(1000 + Math.random() * 9000);
+    const myReferralCode =
+      name.toLowerCase().replace(/\s+/g, '') +
+      Math.floor(1000 + Math.random() * 9000);
 
-    // 2. Check if the user signed up using someone else's referral code
     let referredBy = null;
+
     if (referralCode) {
-      const [referrer] = await db.query('SELECT referral_code FROM users WHERE referral_code = ?', [referralCode]);
-      if (referrer.length > 0) {
-        referredBy = referrer[0].referral_code;
-      }
+      const [referrer] = await db.query(
+        'SELECT referral_code FROM users WHERE referral_code = ?',
+        [referralCode]
+      );
+
+      if (referrer.length) referredBy = referrer[0].referral_code;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3. Insert new user with BOTH their own code and who referred them
     const [result] = await db.query(
-      'INSERT INTO users (name, email, password, referral_code, referred_by) VALUES (?, ?, ?, ?, ?)',
-      [name, email, hashedPassword, myReferralCode, referredBy]
+      `INSERT INTO users
+       (name, email, password, referral_code, referred_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [name.trim(), email, hashedPassword, myReferralCode, referredBy]
     );
 
     const userId = result.insertId;
-    const token = jwt.sign({ id: userId, email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { id: userId, email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.status(201).json({
       message: 'Registration successful!',
       token,
-      user: { id: userId, name, email, role: 'user', referral_code: myReferralCode }
+      user: {
+        id: userId,
+        name: name.trim(),
+        email,
+        role: 'user',
+        referral_code: myReferralCode
+      }
     });
-
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ error: 'Server error during registration.' });
@@ -132,22 +151,32 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (users.length === 0) {
+    const [users] = await db.query(
+      'SELECT * FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (!users.length) {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
 
     const user = users[0];
     const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.json({
       success: true,
@@ -169,8 +198,14 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', verifyToken, async (req, res) => {
   try {
-    const [users] = await db.query('SELECT id, name, email, balance, referrals_count, role FROM users WHERE id = ?', [req.user.id]);
-    if (users.length === 0) return res.status(404).json({ error: 'User not found.' });
+    const [users] = await db.query(
+      'SELECT id, name, email, balance, referrals_count, role FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
+    if (!users.length) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
 
     res.json({ success: true, user: users[0] });
   } catch (err) {
@@ -178,19 +213,156 @@ app.get('/api/auth/me', verifyToken, async (req, res) => {
   }
 });
 
+// --- USER PROFILE MANAGEMENT ROUTES ---
+
+app.get('/api/user/profile', verifyToken, async (req, res) => {
+  try {
+    const [users] = await db.query(
+      `SELECT id, name, email, balance, referrals_count,
+              role, referral_code, created_at
+       FROM users WHERE id = ?`,
+      [req.user.id]
+    );
+
+    if (!users.length) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({ success: true, user: users[0] });
+  } catch (err) {
+    console.error('Fetch profile error:', err);
+    res.status(500).json({ error: 'Failed to load profile.' });
+  }
+});
+
+app.put('/api/user/profile', verifyToken, async (req, res) => {
+  try {
+    const name = typeof req.body.name === 'string'
+      ? req.body.name.trim()
+      : '';
+
+    if (name.length < 2 || name.length > 100) {
+      return res.status(400).json({
+        error: 'Name must be between 2 and 100 characters.'
+      });
+    }
+
+    const [result] = await db.query(
+      'UPDATE users SET name = ? WHERE id = ?',
+      [name, req.user.id]
+    );
+
+    if (result.affectedRows === 0) {
+      const [users] = await db.query(
+        'SELECT id FROM users WHERE id = ?',
+        [req.user.id]
+      );
+
+      if (!users.length) {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+    }
+
+    const [updatedUsers] = await db.query(
+      `SELECT id, name, email, balance, referrals_count,
+              role, referral_code, created_at
+       FROM users WHERE id = ?`,
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: updatedUsers[0]
+    });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    res.status(500).json({ error: 'Failed to update profile.' });
+  }
+});
+
+app.post('/api/user/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (
+      typeof currentPassword !== 'string' ||
+      typeof newPassword !== 'string' ||
+      !currentPassword ||
+      !newPassword
+    ) {
+      return res.status(400).json({
+        error: 'Current password and new password are required.'
+      });
+    }
+
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      return res.status(400).json({
+        error: 'New password must be between 8 and 128 characters.'
+      });
+    }
+
+    const [users] = await db.query(
+      'SELECT id, password FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
+    if (!users.length) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const matches = await bcrypt.compare(
+      currentPassword,
+      users[0].password
+    );
+
+    if (!matches) {
+      return res.status(400).json({
+        error: 'Current password is incorrect.'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await db.query(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [hashedPassword, req.user.id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully.'
+    });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ error: 'Failed to change password.' });
+  }
+});
+
+// --- FORGOT AND RESET PASSWORD ---
+
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
-    const [users] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
-    
-    if (users.length === 0) {
-      return res.json({ success: true, message: 'If that email exists, an OTP has been sent.' });
+    const [users] = await db.query(
+      'SELECT id FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (!users.length) {
+      return res.json({
+        success: true,
+        message: 'If that email exists, an OTP has been sent.'
+      });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    await db.query('UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE email = ?', [otp, expiresAt, email]);
+    await db.query(
+      'UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE email = ?',
+      [otp, expiresAt, email]
+    );
 
     await transporter.sendMail({
       from: '"Earn Plaza" <no-reply@earnplaza.com>',
@@ -209,22 +381,44 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
+
     if (!email || !otp || !newPassword) {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    const [users] = await db.query('SELECT id, reset_otp, reset_otp_expires FROM users WHERE email = ?', [email]);
-    if (users.length === 0) {
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters.'
+      });
+    }
+
+    const [users] = await db.query(
+      'SELECT id, reset_otp, reset_otp_expires FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (!users.length) {
       return res.status(400).json({ error: 'Invalid request.' });
     }
 
     const user = users[0];
-    if (user.reset_otp !== otp || new Date() > new Date(user.reset_otp_expires)) {
+
+    if (
+      user.reset_otp !== otp ||
+      !user.reset_otp_expires ||
+      new Date() > new Date(user.reset_otp_expires)
+    ) {
       return res.status(400).json({ error: 'Invalid or expired OTP.' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await db.query('UPDATE users SET password = ?, reset_otp = NULL, reset_otp_expires = NULL WHERE id = ?', [hashedPassword, user.id]);
+
+    await db.query(
+      `UPDATE users
+       SET password = ?, reset_otp = NULL, reset_otp_expires = NULL
+       WHERE id = ?`,
+      [hashedPassword, user.id]
+    );
 
     res.json({ success: true, message: 'Password reset successfully!' });
   } catch (err) {
@@ -238,18 +432,18 @@ app.post('/api/auth/reset-password', async (req, res) => {
 app.get('/api/tasks', optionalToken, async (req, res) => {
   try {
     let query = `
-      SELECT * FROM tasks 
-      WHERE (expires_at IS NULL OR expires_at > NOW()) 
+      SELECT * FROM tasks
+      WHERE (expires_at IS NULL OR expires_at > NOW())
       AND slots_claimed < slots
     `;
     const params = [];
 
     if (req.user && req.user.id) {
-      query += ` AND id NOT IN (SELECT task_id FROM task_submissions WHERE user_id = ?)`;
+      query += ' AND id NOT IN (SELECT task_id FROM task_submissions WHERE user_id = ?)';
       params.push(req.user.id);
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += ' ORDER BY created_at DESC';
 
     const [tasks] = await db.query(query, params);
     res.json(tasks);
@@ -262,21 +456,37 @@ app.get('/api/tasks', optionalToken, async (req, res) => {
 app.post('/api/tasks', verifyToken, async (req, res) => {
   try {
     const { title, description, reward, category, slots, durationHours } = req.body;
+
     if (!title || !description || !reward) {
-      return res.status(400).json({ error: 'Title, description, and reward are required.' });
+      return res.status(400).json({
+        error: 'Title, description, and reward are required.'
+      });
     }
 
-    const hours = parseInt(durationHours) || 24;
+    const hours = parseInt(durationHours, 10) || 24;
     const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
-    const taskSlots = parseInt(slots) || 10;
+    const taskSlots = parseInt(slots, 10) || 10;
 
     const [result] = await db.query(
-      `INSERT INTO tasks (title, description, reward, category, slots, expires_at, created_by) 
+      `INSERT INTO tasks
+       (title, description, reward, category, slots, expires_at, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [title, description, parseFloat(reward), category || 'social', taskSlots, expiresAt, req.user.id]
+      [
+        title,
+        description,
+        parseFloat(reward),
+        category || 'social',
+        taskSlots,
+        expiresAt,
+        req.user.id
+      ]
     );
 
-    const [newTask] = await db.query('SELECT * FROM tasks WHERE id = ?', [result.insertId]);
+    const [newTask] = await db.query(
+      'SELECT * FROM tasks WHERE id = ?',
+      [result.insertId]
+    );
+
     res.status(201).json(newTask[0]);
   } catch (err) {
     console.error('Create task error:', err);
@@ -297,28 +507,36 @@ app.delete('/api/tasks/:id', verifyToken, verifyAdmin, async (req, res) => {
 app.post('/api/tasks/submit', verifyToken, async (req, res) => {
   try {
     const { taskId, proof } = req.body;
+
     if (!taskId || !proof) {
-      return res.status(400).json({ error: 'Task ID and proof are required.' });
+      return res.status(400).json({
+        error: 'Task ID and proof are required.'
+      });
     }
 
     const [tasks] = await db.query(
-      'SELECT * FROM tasks WHERE id = ? AND (expires_at IS NULL OR expires_at > NOW()) AND slots_claimed < slots',
+      `SELECT * FROM tasks
+       WHERE id = ?
+       AND (expires_at IS NULL OR expires_at > NOW())
+       AND slots_claimed < slots`,
       [taskId]
     );
 
-    if (tasks.length === 0) {
-      return res.status(400).json({ error: 'Task is expired, full, or does not exist.' });
+    if (!tasks.length) {
+      return res.status(400).json({
+        error: 'Task is expired, full, or does not exist.'
+      });
     }
-
-    const task = tasks[0];
 
     const [existing] = await db.query(
       'SELECT id FROM task_submissions WHERE task_id = ? AND user_id = ?',
       [taskId, req.user.id]
     );
 
-    if (existing.length > 0) {
-      return res.status(400).json({ error: 'You have already submitted proof for this task.' });
+    if (existing.length) {
+      return res.status(400).json({
+        error: 'You have already submitted proof for this task.'
+      });
     }
 
     await db.query(
@@ -326,79 +544,77 @@ app.post('/api/tasks/submit', verifyToken, async (req, res) => {
       [taskId, req.user.id, proof]
     );
 
-    await db.query('UPDATE tasks SET slots_claimed = slots_claimed + 1 WHERE id = ?', [task.id]);
-
-    res.json({ success: true, message: 'Proof submitted successfully! Waiting for admin approval.' });
-  } catch (err) {
-    console.error('Task submission error:', err);
-    res.status(500).json({ error: 'Server error processing task submission.' });
-  }
-});
-
-
-// --- DEPOSIT & CAMPAIGN ROUTES ---
-
-// POST /api/user/deposit (and aliases)
-app.post(['/api/user/deposit', '/api/user/deposits', '/api/deposits'], verifyToken, async (req, res) => {
-  const { amount, reference, referenceId, paymentMethod } = req.body;
-  const depositAmount = parseFloat(amount);
-
-  if (isNaN(depositAmount) || depositAmount <= 0) {
-    return res.status(400).json({ error: 'Invalid deposit amount.' });
-  }
-
-  const txRef = reference || referenceId || `DEP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  const method = paymentMethod || 'Bank Transfer';
-
-  try {
-    const [result] = await db.query(
-      'INSERT INTO deposits (user_id, amount, payment_method, reference, status) VALUES (?, ?, ?, ?, "pending")',
-      [req.user.id, depositAmount, method, txRef]
+    await db.query(
+      'UPDATE tasks SET slots_claimed = slots_claimed + 1 WHERE id = ?',
+      [tasks[0].id]
     );
 
-    return res.json({
+    res.json({
       success: true,
-      message: 'Deposit request submitted successfully! Awaiting approval.',
-      depositId: result.insertId,
-      reference: txRef
+      message: 'Proof submitted successfully! Waiting for admin approval.'
     });
   } catch (err) {
-    console.error('Deposit request error:', err);
-    return res.status(500).json({ error: 'Failed to process deposit request.' });
+    console.error('Task submission error:', err);
+    res.status(500).json({
+      error: 'Server error processing task submission.'
+    });
   }
 });
 
-// GET /api/admin/deposits
-// Fetch deposit requests for the admin panel
+// --- DEPOSIT ROUTES ---
+
+app.post(
+  ['/api/user/deposit', '/api/user/deposits', '/api/deposits'],
+  verifyToken,
+  async (req, res) => {
+    const { amount, reference, referenceId, paymentMethod } = req.body;
+    const depositAmount = parseFloat(amount);
+
+    if (isNaN(depositAmount) || depositAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid deposit amount.' });
+    }
+
+    const txRef = reference || referenceId ||
+      `DEP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    try {
+      const [result] = await db.query(
+        `INSERT INTO deposits
+         (user_id, amount, payment_method, reference, status)
+         VALUES (?, ?, ?, ?, "pending")`,
+        [req.user.id, depositAmount, paymentMethod || 'Bank Transfer', txRef]
+      );
+
+      res.json({
+        success: true,
+        message: 'Deposit request submitted successfully! Awaiting approval.',
+        depositId: result.insertId,
+        reference: txRef
+      });
+    } catch (err) {
+      console.error('Deposit request error:', err);
+      res.status(500).json({ error: 'Failed to process deposit request.' });
+    }
+  }
+);
+
 app.get('/api/admin/deposits', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const [deposits] = await db.query(`
-      SELECT
-        d.*,
-        u.name AS user_name,
-        u.email AS user_email
+      SELECT d.*, u.name AS user_name, u.email AS user_email
       FROM deposits d
       LEFT JOIN users u ON d.user_id = u.id
       ORDER BY d.created_at DESC
     `);
 
-    console.log(`Admin deposits fetched: ${deposits.length}`);
-
-    return res.status(200).json(deposits);
+    res.json(deposits);
   } catch (err) {
     console.error('Fetch admin deposits error:', err);
-
-    return res.status(500).json({
-      error: 'Failed to fetch deposit requests.'
-    });
+    res.status(500).json({ error: 'Failed to fetch deposit requests.' });
   }
 });
 
-// POST /api/admin/deposits/:id/action
 app.post('/api/admin/deposits/:id/action', verifyToken, verifyAdmin, async (req, res) => {
-  const depositId = req.params.id;
-  const { action } = req.body;
-
   const connection = await db.getConnection();
 
   try {
@@ -406,108 +622,82 @@ app.post('/api/admin/deposits/:id/action', verifyToken, verifyAdmin, async (req,
 
     const [deposits] = await connection.query(
       'SELECT * FROM deposits WHERE id = ? AND status = "pending" FOR UPDATE',
-      [depositId]
+      [req.params.id]
     );
 
-    if (deposits.length === 0) {
+    if (!deposits.length) {
       await connection.rollback();
       return res.status(404).json({ error: 'Pending deposit request not found.' });
     }
 
     const deposit = deposits[0];
+    const { action } = req.body;
     const refCode = deposit.reference || deposit.reference_id || deposit.proof || 'N/A';
 
     if (action === 'approve') {
-      // 1. Update deposit record status
       await connection.query(
         'UPDATE deposits SET status = "approved" WHERE id = ?',
-        [depositId]
+        [req.params.id]
       );
 
-      // 2. Increase user balance
       await connection.query(
         'UPDATE users SET balance = balance + ? WHERE id = ?',
         [deposit.amount, deposit.user_id]
       );
 
-      // 3. Log completed transaction
       await connection.query(
-        'INSERT INTO transactions (user_id, type, amount, description, status) VALUES (?, "deposit", ?, ?, "completed")',
+        `INSERT INTO transactions
+         (user_id, type, amount, description, status)
+         VALUES (?, "deposit", ?, ?, "completed")`,
         [deposit.user_id, deposit.amount, `Wallet Deposit (Ref: ${refCode})`]
       );
 
       await connection.commit();
+      return res.json({ success: true, message: 'Deposit approved and balance credited!' });
+    }
 
-      return res.json({
-        success: true,
-        message: 'Deposit approved and balance credited!'
-      });
-
-    } else if (action === 'reject') {
-      // 1. Mark deposit as rejected
+    if (action === 'reject') {
       await connection.query(
         'UPDATE deposits SET status = "rejected" WHERE id = ?',
-        [depositId]
+        [req.params.id]
       );
 
       await connection.commit();
-
-      return res.json({
-        success: true,
-        message: 'Deposit request rejected.'
-      });
-
-    } else {
-      await connection.rollback();
-
-      return res.status(400).json({
-        error: 'Invalid action specified.'
-      });
+      return res.json({ success: true, message: 'Deposit request rejected.' });
     }
 
+    await connection.rollback();
+    res.status(400).json({ error: 'Invalid action specified.' });
   } catch (err) {
     await connection.rollback();
     console.error('Deposit action error:', err);
-
-    return res.status(500).json({
-      error: 'Failed to process deposit action.'
-    });
+    res.status(500).json({ error: 'Failed to process deposit action.' });
   } finally {
     connection.release();
   }
 });
 
-// --- SUBMISSIONS MANAGEMENT ROUTES ---
+// --- TASK SUBMISSION ADMIN ROUTES ---
 
 app.get('/api/admin/submissions', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const [submissions] = await db.query(
-      `SELECT
-         s.*,
-         t.title AS task_title,
-         t.reward,
-         u.name AS user_name,
-         u.email AS user_email
-       FROM task_submissions s
-       JOIN tasks t ON s.task_id = t.id
-       JOIN users u ON s.user_id = u.id
-       ORDER BY s.created_at DESC`
-    );
+    const [submissions] = await db.query(`
+      SELECT s.*, t.title AS task_title, t.reward,
+             u.name AS user_name, u.email AS user_email
+      FROM task_submissions s
+      JOIN tasks t ON s.task_id = t.id
+      JOIN users u ON s.user_id = u.id
+      ORDER BY s.created_at DESC
+    `);
 
-    return res.json(submissions);
+    res.json(submissions);
   } catch (err) {
     console.error('Fetch admin submissions error:', err);
-
-    return res.status(500).json({
-      error: 'Failed to fetch task submissions.'
-    });
+    res.status(500).json({ error: 'Failed to fetch task submissions.' });
   }
 });
 
 app.post('/api/admin/submissions/:id/action', verifyToken, verifyAdmin, async (req, res) => {
-  const submissionId = req.params.id;
-  const { action } = req.body;
-
   const connection = await db.getConnection();
 
   try {
@@ -517,33 +707,26 @@ app.post('/api/admin/submissions/:id/action', verifyToken, verifyAdmin, async (r
       `SELECT s.*, t.title, t.reward
        FROM task_submissions s
        JOIN tasks t ON s.task_id = t.id
-       WHERE s.id = ?
-       FOR UPDATE`,
-      [submissionId]
+       WHERE s.id = ? FOR UPDATE`,
+      [req.params.id]
     );
 
-    if (subs.length === 0) {
+    if (!subs.length) {
       await connection.rollback();
-
-      return res.status(404).json({
-        error: 'Submission not found.'
-      });
+      return res.status(404).json({ error: 'Submission not found.' });
     }
 
     const sub = subs[0];
 
     if (sub.status !== 'pending') {
       await connection.rollback();
-
-      return res.status(400).json({
-        error: `Submission is already ${sub.status}.`
-      });
+      return res.status(400).json({ error: `Submission is already ${sub.status}.` });
     }
 
-    if (action === 'approve') {
+    if (req.body.action === 'approve') {
       await connection.query(
         'UPDATE task_submissions SET status = "approved" WHERE id = ?',
-        [submissionId]
+        [req.params.id]
       );
 
       await connection.query(
@@ -552,21 +735,20 @@ app.post('/api/admin/submissions/:id/action', verifyToken, verifyAdmin, async (r
       );
 
       await connection.query(
-        'INSERT INTO transactions (user_id, type, amount, description, status) VALUES (?, "earning", ?, ?, "completed")',
+        `INSERT INTO transactions
+         (user_id, type, amount, description, status)
+         VALUES (?, "earning", ?, ?, "completed")`,
         [sub.user_id, sub.reward, `Earned from task: ${sub.title}`]
       );
 
       await connection.commit();
+      return res.json({ success: true, message: 'Submission approved and user credited!' });
+    }
 
-      return res.json({
-        success: true,
-        message: 'Submission approved and user credited!'
-      });
-
-    } else if (action === 'reject') {
+    if (req.body.action === 'reject') {
       await connection.query(
         'UPDATE task_submissions SET status = "rejected" WHERE id = ?',
-        [submissionId]
+        [req.params.id]
       );
 
       await connection.query(
@@ -575,49 +757,35 @@ app.post('/api/admin/submissions/:id/action', verifyToken, verifyAdmin, async (r
       );
 
       await connection.commit();
-
-      return res.json({
-        success: true,
-        message: 'Submission rejected.'
-      });
-
-    } else {
-      await connection.rollback();
-
-      return res.status(400).json({
-        error: 'Invalid action.'
-      });
+      return res.json({ success: true, message: 'Submission rejected.' });
     }
 
+    await connection.rollback();
+    res.status(400).json({ error: 'Invalid action.' });
   } catch (err) {
     await connection.rollback();
     console.error('Admin submission action error:', err);
-
-    return res.status(500).json({
-      error: 'Server error processing submission action.'
-    });
+    res.status(500).json({ error: 'Server error processing submission action.' });
   } finally {
     connection.release();
   }
 });
 
+// --- REFERRAL ROUTES ---
 
-// --- REFERRALS ROUTES ---
-
-// GET /api/user/referrals - Fetch summary stats for the logged-in user
 app.get('/api/user/referrals', verifyToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const [userRows] = await db.query(
+      'SELECT referral_code FROM users WHERE id = ?',
+      [req.user.id]
+    );
 
-    // Fetch user's referral code
-    const [userRows] = await db.query('SELECT referral_code FROM users WHERE id = ?', [userId]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!userRows.length) {
+      return res.status(404).json({ error: 'User not found.' });
     }
 
     const myCode = userRows[0].referral_code;
 
-    // Count referrals
     const [refRows] = await db.query(
       'SELECT COUNT(*) AS total_referrals FROM users WHERE referred_by = ?',
       [myCode]
@@ -628,62 +796,66 @@ app.get('/api/user/referrals', verifyToken, async (req, res) => {
       referralLink: `http://localhost:5173/?ref=${myCode}`,
       totalReferrals: refRows[0].total_referrals
     });
-
   } catch (err) {
     console.error('Error fetching referral stats:', err);
-    res.status(500).json({ error: 'Failed to fetch referral data' });
+    res.status(500).json({ error: 'Failed to fetch referral data.' });
   }
 });
 
-// GET /api/user/referrals/:userId - Fetch list of users referred by a specific user ID
 app.get('/api/user/referrals/:userId', verifyToken, async (req, res) => {
   try {
-    // 1. Fetch referral code using target userId
-    const [userRows] = await db.query('SELECT referral_code FROM users WHERE id = ?', [req.params.userId]);
-    if (userRows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    const [userRows] = await db.query(
+      'SELECT referral_code FROM users WHERE id = ?',
+      [req.params.userId]
+    );
+
+    if (!userRows.length) {
+      return res.status(404).json({ error: 'User not found.' });
     }
 
-    const myCode = userRows[0].referral_code;
-
-    // 2. Query all users referred by that code
     const [referrals] = await db.query(
       'SELECT id, name, email, created_at FROM users WHERE referred_by = ?',
-      [myCode]
+      [userRows[0].referral_code]
     );
 
     res.json(referrals);
-
   } catch (err) {
     console.error('Fetch referrals error:', err);
     res.status(500).json({ error: 'Failed to fetch referral list.' });
   }
 });
 
-// --- WITHDRAWAL & TRANSACTIONS ROUTES ---
+// --- WITHDRAWALS AND TRANSACTIONS ---
 
 const MIN_REFERRALS_REQUIRED = 3;
 const MIN_WITHDRAWAL_AMOUNT = 10.0;
 
 app.post('/api/withdrawals', verifyToken, async (req, res) => {
   const connection = await db.getConnection();
+
   try {
     const { amount, paymentMethod, accountDetails } = req.body;
     const withdrawAmount = parseFloat(amount);
 
     if (isNaN(withdrawAmount) || withdrawAmount < MIN_WITHDRAWAL_AMOUNT) {
-      return res.status(400).json({ error: `Minimum withdrawal amount is $${MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.` });
+      await connection.rollback().catch(() => {});
+      return res.status(400).json({
+        error: `Minimum withdrawal amount is $${MIN_WITHDRAWAL_AMOUNT.toFixed(2)}.`
+      });
     }
 
-    if (!accountDetails || typeof accountDetails !== 'string' || accountDetails.trim() === '') {
+    if (!accountDetails || typeof accountDetails !== 'string' || !accountDetails.trim()) {
       return res.status(400).json({ error: 'Please provide valid account or destination details.' });
     }
 
     await connection.beginTransaction();
 
-    // 1. Lock user row and fetch referral_code
-    const [users] = await connection.query('SELECT balance, referral_code FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
-    if (users.length === 0) {
+    const [users] = await connection.query(
+      'SELECT balance, referral_code FROM users WHERE id = ? FOR UPDATE',
+      [req.user.id]
+    );
+
+    if (!users.length) {
       await connection.rollback();
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -691,50 +863,53 @@ app.post('/api/withdrawals', verifyToken, async (req, res) => {
     const user = users[0];
     const currentBalance = parseFloat(user.balance);
 
-    // 2. Count total active referrals dynamically using referral_code
     const [refRows] = await connection.query(
-      'SELECT COUNT(*) AS total FROM users WHERE referred_by = ?', 
+      'SELECT COUNT(*) AS total FROM users WHERE referred_by = ?',
       [user.referral_code]
     );
+
     const activeReferrals = refRows[0].total;
 
-    // 3. Enforce the 3-referral requirement
     if (activeReferrals < MIN_REFERRALS_REQUIRED) {
       await connection.rollback();
-      return res.status(400).json({ 
-        error: `Withdrawal locked. You need at least ${MIN_REFERRALS_REQUIRED} referrals to withdraw (You currently have ${activeReferrals}).` 
+      return res.status(400).json({
+        error: `Withdrawal locked. You need at least ${MIN_REFERRALS_REQUIRED} referrals to withdraw (You currently have ${activeReferrals}).`
       });
     }
 
-    // 4. Check balance
     if (currentBalance < withdrawAmount) {
       await connection.rollback();
-      return res.status(400).json({ error: `Insufficient balance. Your balance is $${currentBalance.toFixed(2)}.` });
+      return res.status(400).json({
+        error: `Insufficient balance. Your balance is $${currentBalance.toFixed(2)}.`
+      });
     }
 
     const fee = withdrawAmount * 0.25;
     const netPayout = withdrawAmount - fee;
 
-    // 5. Deduct total amount from user balance
-    await connection.query('UPDATE users SET balance = balance - ? WHERE id = ?', [withdrawAmount, req.user.id]);
-    
-    const description = `Method: ${paymentMethod} | Details: ${accountDetails.trim()} | Fee: $${fee.toFixed(2)}`;
-
-    // 6. Record transaction
     await connection.query(
-      `INSERT INTO transactions (user_id, type, amount, fee, description, status) 
+      'UPDATE users SET balance = balance - ? WHERE id = ?',
+      [withdrawAmount, req.user.id]
+    );
+
+    const description =
+      `Method: ${paymentMethod} | Details: ${accountDetails.trim()} | Fee: $${fee.toFixed(2)}`;
+
+    await connection.query(
+      `INSERT INTO transactions
+       (user_id, type, amount, fee, description, status)
        VALUES (?, 'withdrawal', ?, ?, ?, 'pending')`,
       [req.user.id, netPayout, fee, description]
     );
 
     await connection.commit();
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Withdrawal request submitted successfully!',
       requested: withdrawAmount,
-      fee: fee,
-      netPayout: netPayout,
+      fee,
+      netPayout,
       newBalance: (currentBalance - withdrawAmount).toFixed(2)
     });
   } catch (err) {
@@ -749,10 +924,17 @@ app.post('/api/withdrawals', verifyToken, async (req, res) => {
 app.get('/api/user/earnings-history/:userId', verifyToken, async (req, res) => {
   try {
     const requestedUserId = req.params.userId;
-    if (parseInt(req.user.id) !== parseInt(requestedUserId)) {
-      const [adminCheck] = await db.query('SELECT role FROM users WHERE id = ?', [req.user.id]);
-      if (adminCheck.length === 0 || adminCheck[0].role !== 'admin') {
-        return res.status(403).json({ error: 'Forbidden. Cannot access another user\'s ledger.' });
+
+    if (parseInt(req.user.id, 10) !== parseInt(requestedUserId, 10)) {
+      const [adminCheck] = await db.query(
+        'SELECT role FROM users WHERE id = ?',
+        [req.user.id]
+      );
+
+      if (!adminCheck.length || adminCheck[0].role !== 'admin') {
+        return res.status(403).json({
+          error: 'Forbidden. Cannot access another user\'s ledger.'
+        });
       }
     }
 
@@ -760,28 +942,26 @@ app.get('/api/user/earnings-history/:userId', verifyToken, async (req, res) => {
       'SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC',
       [requestedUserId]
     );
+
     res.json(transactions);
   } catch (err) {
     console.error('History fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch transaction history.' });
   }
 });
-// --- ADMIN WITHDRAWAL MANAGEMENT ROUTES ---
 
 app.get('/api/admin/withdrawals', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const [withdrawals] = await db.query(`
-      SELECT 
-        t.*, 
-        u.name as user_name, 
-        u.email as user_email,
-        (SELECT COUNT(*) FROM users ref WHERE ref.referred_by = u.referral_code) as referrals_count
+      SELECT t.*, u.name AS user_name, u.email AS user_email,
+        (SELECT COUNT(*) FROM users ref
+         WHERE ref.referred_by = u.referral_code) AS referrals_count
       FROM transactions t
       JOIN users u ON t.user_id = u.id
       WHERE t.type = 'withdrawal'
       ORDER BY t.created_at DESC
     `);
-    
+
     res.json(withdrawals);
   } catch (err) {
     console.error('Fetch admin withdrawals error:', err);
@@ -790,40 +970,63 @@ app.get('/api/admin/withdrawals', verifyToken, verifyAdmin, async (req, res) => 
 });
 
 app.post('/api/admin/withdrawals/:id/action', verifyToken, verifyAdmin, async (req, res) => {
-  const withdrawalId = req.params.id;
-  const { action } = req.body;
-
   const connection = await db.getConnection();
+
   try {
     await connection.beginTransaction();
 
-    const [txs] = await connection.query('SELECT * FROM transactions WHERE id = ? AND type = "withdrawal" FOR UPDATE', [withdrawalId]);
-    if (txs.length === 0) {
+    const [txs] = await connection.query(
+      'SELECT * FROM transactions WHERE id = ? AND type = "withdrawal" FOR UPDATE',
+      [req.params.id]
+    );
+
+    if (!txs.length) {
       await connection.rollback();
       return res.status(404).json({ error: 'Withdrawal transaction not found.' });
     }
-    
+
     const tx = txs[0];
+
     if (tx.status !== 'pending') {
       await connection.rollback();
       return res.status(400).json({ error: `Withdrawal is already ${tx.status}.` });
     }
 
-    if (action === 'approve') {
-      await connection.query('UPDATE transactions SET status = "completed" WHERE id = ?', [withdrawalId]);
+    if (req.body.action === 'approve') {
+      await connection.query(
+        'UPDATE transactions SET status = "completed" WHERE id = ?',
+        [req.params.id]
+      );
+
       await connection.commit();
-      res.json({ success: true, message: 'Withdrawal marked as approved/completed.' });
-    } else if (action === 'reject') {
-      const totalRefund = Number(tx.amount) + Number(tx.fee || 0);
-      await connection.query('UPDATE users SET balance = balance + ? WHERE id = ?', [totalRefund, tx.user_id]);
-      await connection.query('UPDATE transactions SET status = "rejected", description = CONCAT(description, " [REJECTED & REFUNDED]") WHERE id = ?', [withdrawalId]);
-      
-      await connection.commit();
-      res.json({ success: true, message: 'Withdrawal rejected and funds refunded to user balance.' });
-    } else {
-      await connection.rollback();
-      res.status(400).json({ error: 'Invalid action.' });
+      return res.json({ success: true, message: 'Withdrawal marked as approved/completed.' });
     }
+
+    if (req.body.action === 'reject') {
+      const totalRefund = Number(tx.amount) + Number(tx.fee || 0);
+
+      await connection.query(
+        'UPDATE users SET balance = balance + ? WHERE id = ?',
+        [totalRefund, tx.user_id]
+      );
+
+      await connection.query(
+        `UPDATE transactions
+         SET status = "rejected",
+             description = CONCAT(description, " [REJECTED & REFUNDED]")
+         WHERE id = ?`,
+        [req.params.id]
+      );
+
+      await connection.commit();
+      return res.json({
+        success: true,
+        message: 'Withdrawal rejected and funds refunded to user balance.'
+      });
+    }
+
+    await connection.rollback();
+    res.status(400).json({ error: 'Invalid action.' });
   } catch (err) {
     await connection.rollback();
     console.error('Admin withdrawal action error:', err);
@@ -832,14 +1035,17 @@ app.post('/api/admin/withdrawals/:id/action', verifyToken, verifyAdmin, async (r
     connection.release();
   }
 });
+
 // --- SERVE FRONTEND IN PRODUCTION ---
-// Serve the static files from the React app
+
 app.use(express.static(path.join(__dirname, 'dist')));
-// Handles any requests that don't match the API routes above
+
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
+
 // --- LISTEN ---
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
