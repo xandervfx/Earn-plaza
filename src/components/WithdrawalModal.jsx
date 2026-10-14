@@ -1,6 +1,13 @@
-// src/components/WithdrawalModal.jsx
+
 import React, { useState, useEffect } from 'react';
-import { X, AlertCircle, Wallet, ArrowRight } from 'lucide-react';
+import {
+  X,
+  AlertCircle,
+  Wallet,
+  ArrowRight,
+  ArrowLeft,
+  ShieldCheck
+} from 'lucide-react';
 import { API_BASE } from './config';
 
 const NIGERIAN_BANKS = [
@@ -42,7 +49,14 @@ const PAYOUT_METHODS = [
 const MIN_WITHDRAWAL = 10;
 const REQUIRED_REFERRALS = 3;
 
-export default function WithdrawalModal({ isOpen, onClose, user, balance = 0, onWithdrawSuccess }) {
+export default function WithdrawalModal({
+  isOpen = true,
+  onClose = () => {},
+  user,
+  balance = 0,
+  onWithdrawSuccess,
+  standalone = false
+}) {
   const [payoutMethod, setPayoutMethod] = useState('Bank Transfer');
   const [accountName, setAccountName] = useState('');
   const [accountNo, setAccountNo] = useState('');
@@ -51,265 +65,439 @@ export default function WithdrawalModal({ isOpen, onClose, user, balance = 0, on
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  
-  // Dynamic state for live referral count
   const [userReferrals, setUserReferrals] = useState(0);
   const [isLoadingReferrals, setIsLoadingReferrals] = useState(true);
 
-  // Fetch live referral count whenever modal opens
+  const pageIsActive = standalone || isOpen;
+
   useEffect(() => {
-    if (!isOpen) return;
+    if (!pageIsActive) return;
+
+    let cancelled = false;
 
     const fetchLiveReferralCount = async () => {
       setIsLoadingReferrals(true);
-      const token = localStorage.getItem('token');
+
       try {
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+          throw new Error('Please log in to continue.');
+        }
+
         const res = await fetch(`${API_BASE}/api/withdrawals`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         });
-        if (res.ok) {
-          const data = await res.json();
-          setUserReferrals(data.totalReferrals || 0);
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(data.message || 'Unable to load your referral count.');
+        }
+
+        if (!cancelled) {
+          setUserReferrals(Number(data.totalReferrals) || 0);
         }
       } catch (err) {
-        console.error('Failed to load referral count for modal:', err);
+        if (!cancelled) {
+          setError(err.message || 'Unable to load referral information.');
+        }
       } finally {
-        setIsLoadingReferrals(false);
+        if (!cancelled) {
+          setIsLoadingReferrals(false);
+        }
       }
     };
 
     fetchLiveReferralCount();
-  }, [isOpen]);
 
-  // Close on Escape key press
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) onClose();
+    return () => {
+      cancelled = true;
     };
+  }, [pageIsActive, user?.id]);
+
+  useEffect(() => {
+    if (standalone || !isOpen) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [standalone, isOpen, onClose]);
 
-  if (!isOpen) return null;
-
-  const numAmount = parseFloat(amount) || 0;
+  const numAmount = Number(amount) || 0;
   const fee = numAmount * 0.25;
   const netAmount = Math.max(0, numAmount - fee);
 
-  const handleWithdraw = async (e) => {
-    e.preventDefault();
+  const handleWithdraw = async (event) => {
+    event.preventDefault();
+
     if (isProcessing) return;
 
-    // Check referral requirement dynamically
-    if (userReferrals < REQUIRED_REFERRALS) {
-      setError(`You need at least ${REQUIRED_REFERRALS} referrals to withdraw (Current: ${userReferrals}).`);
+    if (isLoadingReferrals) {
+      setError('Please wait while we check your referral count.');
       return;
     }
 
-    if (isNaN(numAmount) || numAmount < MIN_WITHDRAWAL) {
+    if (userReferrals < REQUIRED_REFERRALS) {
+      setError(
+        `You need at least ${REQUIRED_REFERRALS} referrals to withdraw. Current referrals: ${userReferrals}.`
+      );
+      return;
+    }
+
+    if (!Number.isFinite(numAmount) || numAmount < MIN_WITHDRAWAL) {
       setError(`Minimum withdrawal amount is $${MIN_WITHDRAWAL.toFixed(2)}.`);
       return;
     }
 
-    if (numAmount > balance) {
-      setError('Withdrawal amount exceeds your current available balance.');
+    if (numAmount > Number(balance)) {
+      setError('Withdrawal amount exceeds your available balance.');
+      return;
+    }
+
+    if (!user) {
+      setError('Please log in before requesting a withdrawal.');
       return;
     }
 
     let fullAccountDetails = '';
+
     if (payoutMethod === 'Bank Transfer') {
-      if (!accountName.trim() || !accountNo.trim()) {
-        setError('Please complete all bank account details.');
+      if (!accountName.trim() || !/^\d{10}$/.test(accountNo)) {
+        setError('Enter the account name and a valid 10-digit account number.');
         return;
       }
-      fullAccountDetails = `Bank: ${bankName} | Acc No: ${accountNo} | Name: ${accountName}`;
+
+      fullAccountDetails =
+        `Bank: ${bankName} | Acc No: ${accountNo} | Name: ${accountName.trim()}`;
     } else {
       if (!destinationDetail.trim()) {
         setError(`Please provide your ${payoutMethod} details.`);
         return;
       }
+
       fullAccountDetails = `${payoutMethod}: ${destinationDetail.trim()}`;
+    }
+
+    if (typeof onWithdrawSuccess !== 'function') {
+      setError('Withdrawal submission is not configured. Please contact support.');
+      return;
     }
 
     setError('');
     setIsProcessing(true);
 
     try {
-      await onWithdrawSuccess({ 
-        amount: numAmount, 
+      await onWithdrawSuccess({
+        amount: numAmount,
         netAmount,
-        method: payoutMethod, 
-        accountDetails: fullAccountDetails 
+        method: payoutMethod,
+        accountDetails: fullAccountDetails
       });
-      onClose();
+
+      setAmount('');
+      setAccountName('');
+      setAccountNo('');
+      setDestinationDetail('');
+
+      if (standalone) {
+        window.location.hash = '';
+      } else {
+        onClose();
+      }
     } catch (err) {
-      setError(err?.message || 'Failed to submit withdrawal request. Try again.');
+      setError(err?.message || 'Failed to submit withdrawal request. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-white relative shadow-2xl">
-        
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-              <Wallet className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white leading-tight">Request Payout</h3>
-              <p className="text-xs text-slate-400">Balance: <span className="text-emerald-400 font-bold">${Number(balance).toFixed(2)}</span></p>
-            </div>
+  if (!standalone && !isOpen) return null;
+
+  const content = (
+    <div className="w-full max-w-xl mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 text-white shadow-2xl">
+      <div className="flex justify-between items-center mb-6 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+            <Wallet className="w-6 h-6" />
           </div>
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="text-slate-400 hover:text-white p-1.5 rounded-full hover:bg-slate-800 transition cursor-pointer"
+
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black">
+              Request Payout
+            </h1>
+            <p className="text-sm text-slate-400 mt-1">
+              Available balance:{' '}
+              <span className="text-emerald-400 font-bold">
+                ${Number(balance).toFixed(2)}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {!standalone && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close withdrawal"
+            className="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
-        
-        {/* Rules & Requirements Banner */}
-        <div className="bg-amber-500/10 border border-amber-500/20 p-3.5 rounded-2xl text-xs text-amber-300 mb-5 space-y-1">
-          <p className="font-bold flex items-center gap-1.5 text-amber-400 mb-1">
-            <AlertCircle className="w-4 h-4" /> Payout Terms & Rules
-          </p>
-          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-amber-500/20">
-            <div>• Min. Cashout: <strong>${MIN_WITHDRAWAL.toFixed(2)}</strong></div>
-            <div>• Admin Fee: <strong>25%</strong></div>
-            <div className="col-span-2">
-              • Referrals: <strong className={userReferrals >= REQUIRED_REFERRALS ? 'text-emerald-400' : 'text-rose-400'}>
-                {isLoadingReferrals ? 'Checking...' : `${userReferrals} / ${REQUIRED_REFERRALS} Completed`}
-              </strong>
-            </div>
-          </div>
-        </div>
+        )}
+      </div>
 
-        {/* Withdrawal Form */}
-        <form onSubmit={handleWithdraw} className="space-y-4 text-xs">
-          
-          {/* Method Selection */}
+      <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl text-sm text-amber-300 mb-6">
+        <p className="font-bold flex items-center gap-2 text-amber-400 mb-3">
+          <AlertCircle className="w-4 h-4" />
+          Payout Terms & Requirements
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div>
-            <label className="block text-slate-300 font-bold uppercase tracking-wider text-[10px] mb-1.5">Payout Method</label>
-            <select 
-              value={payoutMethod} 
-              onChange={e => setPayoutMethod(e.target.value)} 
-              className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:border-emerald-500 transition cursor-pointer"
-            >
-              {PAYOUT_METHODS.map((m) => (
-                <option key={m.id} value={m.id} className="bg-slate-900 text-white">{m.label}</option>
-              ))}
-            </select>
+            Minimum withdrawal:{' '}
+            <strong>${MIN_WITHDRAWAL.toFixed(2)}</strong>
           </div>
 
-          {/* Conditional Input Fields */}
-          {payoutMethod === 'Bank Transfer' ? (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-slate-300 font-bold uppercase tracking-wider text-[10px] mb-1.5">Select Bank</label>
-                <select 
-                  value={bankName} 
-                  onChange={e => setBankName(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white focus:outline-none focus:border-emerald-500 transition cursor-pointer"
-                >
-                  {NIGERIAN_BANKS.map((bank) => (
-                    <option key={bank} value={bank} className="bg-slate-900 text-white">{bank}</option>
-                  ))}
-                </select>
-              </div>
+          <div>
+            Processing fee: <strong>25%</strong>
+          </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold uppercase tracking-wider text-[10px] mb-1.5">Account Number</label>
-                <input 
-                  type="text" 
-                  maxLength={10}
-                  value={accountNo} 
-                  onChange={e => setAccountNo(e.target.value.replace(/\D/g, ''))} 
-                  placeholder="10-digit account number" 
-                  className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition" 
-                />
-              </div>
+          <div className="sm:col-span-2">
+            Required referrals:{' '}
+            <strong
+              className={
+                userReferrals >= REQUIRED_REFERRALS
+                  ? 'text-emerald-400'
+                  : 'text-rose-400'
+              }
+            >
+              {isLoadingReferrals
+                ? 'Checking...'
+                : `${userReferrals} / ${REQUIRED_REFERRALS}`}
+            </strong>
+          </div>
+        </div>
+      </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold uppercase tracking-wider text-[10px] mb-1.5">Account Name</label>
-                <input 
-                  type="text" 
-                  value={accountName} 
-                  onChange={e => setAccountName(e.target.value)} 
-                  placeholder="Full name on bank account" 
-                  className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition" 
-                />
-              </div>
-            </div>
-          ) : (
+      <form onSubmit={handleWithdraw} className="space-y-5">
+        <div>
+          <label className="block text-xs text-slate-300 font-bold uppercase tracking-wider mb-2">
+            Payout Method
+          </label>
+
+          <select
+            value={payoutMethod}
+            onChange={(event) => {
+              setPayoutMethod(event.target.value);
+              setError('');
+            }}
+            className="w-full bg-slate-950 border border-slate-700 p-3.5 rounded-xl text-white focus:outline-none focus:border-emerald-500"
+          >
+            {PAYOUT_METHODS.map((method) => (
+              <option key={method.id} value={method.id}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {payoutMethod === 'Bank Transfer' ? (
+          <div className="space-y-4">
             <div>
-              <label className="block text-slate-300 font-bold uppercase tracking-wider text-[10px] mb-1.5">
-                {payoutMethod === 'PayPal' && 'PayPal Email Address'}
-                {payoutMethod === 'USDT (Crypto)' && 'USDT Wallet Address (TRC20 / ERC20)'}
-                {payoutMethod === 'Gift Card' && 'Gift Card Type & Delivery Email'}
+              <label className="block text-xs text-slate-300 font-bold uppercase tracking-wider mb-2">
+                Select Bank
               </label>
-              <input 
-                type="text" 
-                value={destinationDetail} 
-                onChange={e => setDestinationDetail(e.target.value)} 
-                placeholder={
-                  payoutMethod === 'PayPal' ? 'user@example.com' :
-                  payoutMethod === 'USDT (Crypto)' ? 'T...' : 'e.g., Amazon - user@example.com'
-                } 
-                className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition" 
+
+              <select
+                value={bankName}
+                onChange={(event) => setBankName(event.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-3.5 rounded-xl text-white focus:outline-none focus:border-emerald-500"
+              >
+                {NIGERIAN_BANKS.map((bank) => (
+                  <option key={bank} value={bank}>
+                    {bank}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-300 font-bold uppercase tracking-wider mb-2">
+                Account Number
+              </label>
+
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={accountNo}
+                onChange={(event) =>
+                  setAccountNo(event.target.value.replace(/\D/g, ''))
+                }
+                placeholder="10-digit account number"
+                className="w-full bg-slate-950 border border-slate-700 p-3.5 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
               />
             </div>
-          )}
 
-          {/* Amount Input & Fee Calculation */}
+            <div>
+              <label className="block text-xs text-slate-300 font-bold uppercase tracking-wider mb-2">
+                Account Name
+              </label>
+
+              <input
+                type="text"
+                value={accountName}
+                onChange={(event) => setAccountName(event.target.value)}
+                placeholder="Full name on bank account"
+                maxLength={100}
+                className="w-full bg-slate-950 border border-slate-700 p-3.5 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+        ) : (
           <div>
-            <label className="block text-slate-300 font-bold uppercase tracking-wider text-[10px] mb-1.5">Amount ($)</label>
-            <input 
-              type="number" 
-              step="0.01" 
-              min={MIN_WITHDRAWAL}
-              value={amount} 
-              onChange={e => {
-                setAmount(e.target.value);
-                if (error) setError('');
-              }} 
-              placeholder="10.00"
-              className="w-full bg-slate-950 border border-slate-800 p-3 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition" 
+            <label className="block text-xs text-slate-300 font-bold uppercase tracking-wider mb-2">
+              {payoutMethod === 'PayPal'
+                ? 'PayPal Email Address'
+                : payoutMethod === 'USDT (Crypto)'
+                  ? 'USDT Wallet Address (TRC20 / ERC20)'
+                  : 'Gift Card Type & Delivery Details'}
+            </label>
+
+            <input
+              type="text"
+              value={destinationDetail}
+              onChange={(event) => setDestinationDetail(event.target.value)}
+              placeholder={
+                payoutMethod === 'PayPal'
+                  ? 'user@example.com'
+                  : payoutMethod === 'USDT (Crypto)'
+                    ? 'Enter your wallet address'
+                    : 'e.g. Amazon gift card'
+              }
+              className="w-full bg-slate-950 border border-slate-700 p-3.5 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
             />
-            {numAmount > 0 && (
-              <div className="flex justify-between items-center text-[11px] text-slate-400 mt-2 px-1">
-                <span>Est. Net Received:</span>
-                <span className="font-bold text-emerald-400">${netAmount.toFixed(2)}</span>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs text-slate-300 font-bold uppercase tracking-wider mb-2">
+            Withdrawal Amount (USD)
+          </label>
+
+          <input
+            type="number"
+            step="0.01"
+            min={MIN_WITHDRAWAL}
+            max={Number(balance)}
+            value={amount}
+            onChange={(event) => {
+              setAmount(event.target.value);
+              setError('');
+            }}
+            placeholder="10.00"
+            className="w-full bg-slate-950 border border-slate-700 p-3.5 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+          />
+
+          {numAmount > 0 && (
+            <div className="mt-3 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-sm">
+              <div className="flex justify-between text-slate-400">
+                <span>Requested amount</span>
+                <span>${numAmount.toFixed(2)}</span>
               </div>
-            )}
+
+              <div className="flex justify-between text-slate-400">
+                <span>25% fee</span>
+                <span>${fee.toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between font-bold border-t border-slate-800 pt-2">
+                <span>Estimated payout</span>
+                <span className="text-emerald-400">
+                  ${netAmount.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-sm"
+          >
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={isProcessing || isLoadingReferrals}
+          className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isProcessing ? 'Submitting Request...' : 'Confirm Cashout Request'}
+          {!isProcessing && <ArrowRight className="w-4 h-4" />}
+        </button>
+
+        <p className="text-xs text-slate-500 text-center leading-relaxed">
+          <ShieldCheck className="w-4 h-4 inline mr-1 text-emerald-400" />
+          Your request is submitted for backend processing. Only the server can
+          confirm its status.
+        </p>
+      </form>
+    </div>
+  );
+
+  if (standalone) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white px-4 py-6 sm:px-6 sm:py-10">
+        <div className="max-w-5xl mx-auto">
+          <button
+            type="button"
+            onClick={() => {
+              window.location.hash = '';
+            }}
+            className="inline-flex items-center gap-2 text-slate-400 hover:text-emerald-400 transition mb-6"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </button>
+
+          <div className="mb-6">
+            <p className="text-emerald-400 text-xs font-bold uppercase tracking-[0.2em]">
+              Earn Plaza Wallet
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-black mt-2">
+              Withdraw Earnings
+            </h2>
+            <p className="text-slate-400 text-sm mt-2">
+              Review your payout details before submitting your request.
+            </p>
           </div>
 
-          {/* Inline Error Message */}
-          {error && (
-            <p className="text-rose-400 text-xs font-semibold flex items-center gap-1.5 pt-1">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </p>
-          )}
+          {content}
+        </div>
+      </main>
+    );
+  }
 
-          {/* Submit Button */}
-          <button 
-            type="submit" 
-            disabled={isProcessing || isLoadingReferrals} 
-            className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-          >
-            <span>{isProcessing ? 'Processing Request...' : 'Confirm Cashout Request'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </form>
-
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto"
+      onClick={(event) =>
+        event.target === event.currentTarget && onClose()
+      }
+    >
+      <div className="w-full max-h-[95vh] overflow-y-auto">
+        {content}
       </div>
     </div>
   );

@@ -1,151 +1,281 @@
 import React, { useState } from 'react';
+import { Wallet, ArrowLeft, ShieldCheck, AlertCircle, CheckCircle2, LoaderCircle } from 'lucide-react';
+import { API_BASE } from './config';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
-export default function DepositModal({ isOpen, onClose, onSuccess }) {
+export default function DepositModal({
+  isOpen = true,
+  onClose = () => {},
+  onSuccess,
+  standalone = false
+}) {
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [referenceId, setReferenceId] = useState('');
   const [proofUrl, setProofUrl] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
+  if (!standalone && !isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!amount || !referenceId) {
-      setError('Please fill in both the Amount and Reference ID.');
+
+    if (isSubmitting) return;
+
+    const numericAmount = Number(amount);
+
+    if (!amount || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setError('Enter a valid deposit amount greater than zero.');
+      return;
+    }
+
+    if (!referenceId.trim()) {
+      setError('Please enter your transaction reference ID.');
+      return;
+    }
+
+    if (proofUrl.trim()) {
+      try {
+        const parsedUrl = new URL(proofUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+          throw new Error('Invalid URL');
+        }
+      } catch {
+        setError('Enter a valid proof URL, or leave it empty.');
+        return;
+      }
+    }
+
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      setError('Your session has expired. Please log in again.');
       return;
     }
 
     setError('');
+    setSuccess('');
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('token');
-      
-      // Points to /api/user/deposit (singular) and matches backend field names
-      const res = await fetch(`${API_BASE_URL}/api/user/deposit`, {
+      const response = await fetch(`${API_BASE}/api/user/deposit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          amount: parseFloat(amount),
+          amount: numericAmount,
           paymentMethod,
-          reference: referenceId,
-          proofUrl
+          reference: referenceId.trim(),
+          proofUrl: proofUrl.trim()
         })
       });
 
-      // Prevent crashing if server returns non-JSON HTML error
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Server returned status ${res.status}. Check server logs.`);
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await response.json()
+        : {};
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || data.message || `Deposit request failed (${response.status}).`
+        );
       }
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit deposit');
+      const message = data.message || 'Deposit request submitted successfully. Your deposit may require admin verification before your balance is credited.';
 
+      setSuccess(message);
       setAmount('');
       setReferenceId('');
       setProofUrl('');
-      if (onSuccess) onSuccess(data.message || 'Deposit request submitted successfully!');
-      onClose();
+
+      if (onSuccess) onSuccess(message);
+
+      if (!standalone) {
+        onClose();
+      }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Could not submit your deposit request. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl w-full max-w-md text-white">
-        <h2 className="text-xl font-bold mb-4">Deposit Funds</h2>
+  const inputClass =
+    'w-full min-w-0 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition';
 
-        {error && (
-          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-xl text-xs mb-4 break-words">
-            {error}
-          </div>
+  const labelClass =
+    'block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2';
+
+  return (
+    <div
+      className={
+        standalone
+          ? 'min-h-screen w-full bg-slate-950 text-white px-4 py-6 sm:px-6 sm:py-10'
+          : 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4'
+      }
+    >
+      <section
+        className={`w-full max-w-xl mx-auto ${
+          standalone
+            ? 'space-y-6'
+            : 'bg-slate-900 border border-slate-800 p-5 sm:p-6 rounded-3xl'
+        }`}
+      >
+        {standalone && (
+          <button
+            type="button"
+            onClick={() => {
+              window.location.hash = '';
+            }}
+            className="inline-flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-emerald-400 transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </button>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-              Amount ($)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="50.00"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-emerald-500"
-            />
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-xl">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 shrink-0 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <Wallet className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-black text-white">
+                Deposit Funds
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                Submit your payment details for verification.
+              </p>
+            </div>
+            {!standalone && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="ml-auto text-slate-400 hover:text-white text-sm"
+              >
+                Close
+              </button>
+            )}
           </div>
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-              Payment Method
-            </label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-emerald-500 cursor-pointer"
-            >
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="Crypto (USDT)">Crypto (USDT)</option>
-              <option value="PayPal">PayPal</option>
-            </select>
+          <div className="flex gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 mb-6">
+            <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-400" />
+            <p className="text-xs leading-5 text-slate-300">
+              Always use the correct transaction reference. Your request may remain pending until an administrator verifies your payment.
+            </p>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-              Transaction Ref / ID
-            </label>
-            <input
-              type="text"
-              value={referenceId}
-              onChange={(e) => setReferenceId(e.target.value)}
-              placeholder="TXN-12345678"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-emerald-500"
-            />
-          </div>
+          {error && (
+            <div role="alert" className="flex gap-2 items-start bg-rose-500/10 border border-rose-500/20 text-rose-300 p-3 rounded-xl text-sm mb-4 break-words">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-              Proof URL (Optional)
-            </label>
-            <input
-              type="url"
-              value={proofUrl}
-              onChange={(e) => setProofUrl(e.target.value)}
-              placeholder="https://imgur.com/your-receipt"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-emerald-500"
-            />
-          </div>
+          {success && (
+            <div role="status" className="flex gap-2 items-start bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 p-3 rounded-xl text-sm mb-4 break-words">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{success}</span>
+            </div>
+          )}
 
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs cursor-pointer"
-            >
-              Cancel
-            </button>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="deposit-amount" className={labelClass}>
+                Deposit Amount (USD)
+              </label>
+              <input
+                id="deposit-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  setError('');
+                }}
+                placeholder="50.00"
+                className={inputClass}
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="deposit-method" className={labelClass}>
+                Payment Method
+              </label>
+              <select
+                id="deposit-method"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className={`${inputClass} cursor-pointer`}
+              >
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Crypto (USDT)">Crypto (USDT)</option>
+                <option value="PayPal">PayPal</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="deposit-reference" className={labelClass}>
+                Transaction Reference / ID
+              </label>
+              <input
+                id="deposit-reference"
+                type="text"
+                maxLength={200}
+                value={referenceId}
+                onChange={(e) => {
+                  setReferenceId(e.target.value);
+                  setError('');
+                }}
+                placeholder="Enter your transaction reference"
+                className={inputClass}
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="deposit-proof" className={labelClass}>
+                Proof URL <span className="normal-case font-normal">(Optional)</span>
+              </label>
+              <input
+                id="deposit-proof"
+                type="url"
+                value={proofUrl}
+                onChange={(e) => {
+                  setProofUrl(e.target.value);
+                  setError('');
+                }}
+                placeholder="https://example.com/receipt"
+                className={inputClass}
+              />
+              <p className="text-[11px] text-slate-500 mt-2">
+                Provide a link to your payment receipt if available.
+              </p>
+            </div>
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs disabled:opacity-50 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3.5 px-4 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting...' : 'Submit Deposit'}
+              {isSubmitting ? (
+                <>
+                  <LoaderCircle className="w-4 h-4 animate-spin" />
+                  Submitting Request...
+                </>
+              ) : (
+                'Submit Deposit Request'
+              )}
             </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }
