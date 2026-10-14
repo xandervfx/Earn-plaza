@@ -62,10 +62,12 @@ export default function Header({
   const navigateTo = (page) => {
     setMenuOpen(false);
 
-    if (window.location.hash === `#${page}`) {
+    const nextHash = page ? `#${page}` : '';
+
+    if (window.location.hash === nextHash) {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     } else {
-      window.location.hash = page ? `#${page}` : '';
+      window.location.hash = nextHash;
     }
   };
 
@@ -74,6 +76,16 @@ export default function Header({
 
     if (typeof action === 'function') {
       action();
+    }
+  };
+
+  const openSupport = () => {
+    setMenuOpen(false);
+
+    if (typeof onOpenSupport === 'function') {
+      onOpenSupport();
+    } else {
+      navigateTo('support');
     }
   };
 
@@ -87,7 +99,7 @@ export default function Header({
     <header className="relative z-40 w-full max-w-full min-w-0 bg-slate-950 border-b border-slate-800 px-3 sm:px-6 py-3">
       <div className="w-full min-w-0 flex items-center justify-between gap-3">
 
-        {/* Hamburger menu: top-left */}
+        {/* Hamburger menu */}
         <div className="relative shrink-0" ref={menuRef}>
           <button
             type="button"
@@ -106,7 +118,6 @@ export default function Header({
 
           {menuOpen && (
             <>
-              {/* Clickable backdrop */}
               <button
                 type="button"
                 aria-label="Close navigation menu"
@@ -114,7 +125,6 @@ export default function Header({
                 onClick={() => setMenuOpen(false)}
               />
 
-              {/* Left-side navigation panel */}
               <nav
                 aria-label="Main navigation"
                 className="absolute left-0 top-full z-50 mt-3 w-72 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl overflow-hidden"
@@ -128,6 +138,7 @@ export default function Header({
                     >
                       Earn<span className="text-emerald-400">Plaza</span>
                     </button>
+
                     <span className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">
                       Navigation
                     </span>
@@ -193,7 +204,7 @@ export default function Header({
                         onClick={() => runAction(onOpenWallet)}
                       >
                         <Wallet className={iconClass} />
-                        Wallet & Transactions
+                        Wallet &amp; Transactions
                         <ChevronRight className="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition" />
                       </button>
 
@@ -238,7 +249,7 @@ export default function Header({
                     onClick={() => navigateTo('terms')}
                   >
                     <FileText className={iconClass} />
-                    Terms & Conditions
+                    Terms &amp; Conditions
                     <ChevronRight className="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition" />
                   </button>
 
@@ -264,16 +275,15 @@ export default function Header({
                     </button>
                   )}
 
-                  {typeof onOpenSupport === 'function' && (
-                    <button
-                      type="button"
-                      className={menuItemClass}
-                      onClick={() => runAction(onOpenSupport)}
-                    >
-                      <CircleHelp className={iconClass} />
-                      Help & Support
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    onClick={openSupport}
+                  >
+                    <CircleHelp className={iconClass} />
+                    Contact &amp; Support
+                    <ChevronRight className="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition" />
+                  </button>
                 </div>
 
                 <div className="border-t border-slate-800 p-3">
@@ -321,9 +331,11 @@ export default function Header({
               aria-label="Open wallet"
             >
               <Wallet className="w-4 h-4 text-emerald-400 shrink-0" />
+
               <span className="hidden md:inline text-xs text-slate-400 font-semibold">
                 Balance:
               </span>
+
               <span className="text-sm font-bold text-emerald-400 whitespace-nowrap">
                 ${Number(balance || 0).toFixed(2)}
               </span>

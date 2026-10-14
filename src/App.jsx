@@ -15,13 +15,19 @@ import AdminDashboard from './components/AdminDashboard';
 import AdvertiserCampaign from './components/AdvertiserCampaign';
 import ReferralCard from './components/ReferralCard';
 import ProfileModal from './components/ProfileModal';
-import { AlertCircle, CheckCircle2, ArrowLeft, FileText, ShieldCheck } from 'lucide-react';
+import ContactSupport from './components/ContactSupport';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ArrowLeft,
+  FileText,
+  ShieldCheck
+} from 'lucide-react';
 import { API_BASE } from './components/config';
 
 const getCurrentRoute = () => {
   const route = window.location.hash.replace(/^#/, '');
 
-  // Preserve older links while supporting the current routes.
   if (route === 'vfx-adminmajor363') return 'admin';
   if (route === 'vfx-advertiser') return 'advertiser';
 
@@ -63,7 +69,6 @@ export default function App() {
     }, 4000);
   };
 
-  // Keep the React route in sync with the browser's URL hash.
   useEffect(() => {
     const handleHashChange = () => {
       setCurrentRoute(getCurrentRoute());
@@ -76,7 +81,6 @@ export default function App() {
     };
   }, []);
 
-  // Ask users to sign in before opening account-only pages.
   useEffect(() => {
     const privateRoutes = ['deposit', 'withdraw', 'profile'];
 
@@ -89,7 +93,6 @@ export default function App() {
     window.location.hash = '';
   };
 
-  // Fetch transaction history from the configured backend.
   const fetchTransactions = useCallback(async (userId) => {
     const id = userId || user?.id || user?.user_id;
 
@@ -128,7 +131,6 @@ export default function App() {
     }
   }, [user?.id, user?.user_id]);
 
-  // Restore the user's login session.
   useEffect(() => {
     let cancelled = false;
 
@@ -177,7 +179,6 @@ export default function App() {
     };
   }, [fetchTransactions]);
 
-  // Load available tasks.
   useEffect(() => {
     let isMounted = true;
 
@@ -226,7 +227,6 @@ export default function App() {
     }
   };
 
-  // Submit a withdrawal request.
   const handleWithdrawSuccess = async ({
     amount,
     method,
@@ -271,7 +271,6 @@ export default function App() {
         );
       }
 
-      // Update the displayed balance only after the server accepts the request.
       setBalance((previousBalance) =>
         Math.max(0, previousBalance - Number(amount))
       );
@@ -289,8 +288,6 @@ export default function App() {
     } catch (err) {
       console.error('Failed to withdraw:', err);
       showToast(`Error: ${err.message}`, 'error');
-
-      // Let WithdrawalModal display the failure instead of treating it as success.
       throw err;
     }
   };
@@ -350,7 +347,6 @@ export default function App() {
           (task.category || '').toLowerCase() === selectedCategory.toLowerCase()
       );
 
-  // Shared notification banner.
   const toastBanner = toast.show ? (
     <div className="fixed bottom-5 right-5 z-[100] animate-in slide-in-from-bottom-5 fade-in duration-300">
       <div
@@ -368,7 +364,7 @@ export default function App() {
     </div>
   ) : null;
 
-  // Admin dashboard route: #admin
+  // Admin route: #admin
   if (currentRoute === 'admin') {
     return (
       <AdminDashboard
@@ -394,6 +390,16 @@ export default function App() {
           goToDashboard();
         }}
       />
+    );
+  }
+
+  // Dedicated Contact & Support page: #support
+  if (currentRoute === 'support') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white antialiased">
+        {toastBanner}
+        <ContactSupport onBack={goToDashboard} />
+      </div>
     );
   }
 
@@ -543,8 +549,8 @@ export default function App() {
                 minimum amount, available balance, referral requirements, and
                 any applicable fee displayed by Earn Plaza. Check the net
                 payout shown before submitting a request. Enter correct payout
-                details. Requests may require review and are not guaranteed to
-                be completed immediately.
+                details. Requests may require review and are not guaranteed
+                to be completed immediately.
               </p>
             </section>
 
@@ -615,9 +621,18 @@ export default function App() {
               </h2>
               <p className="text-sm leading-7 text-slate-400">
                 For questions about an account, task, deposit, or withdrawal,
-                use the support channel provided by Earn Plaza. Keep your
-                transaction references so the relevant request can be reviewed.
+                open the Contact & Support page. Keep your transaction
+                references so the relevant request can be reviewed.
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.hash = '#support';
+                }}
+                className="mt-3 px-4 py-2 rounded-xl border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-sm font-semibold transition"
+              >
+                Contact Support
+              </button>
             </section>
           </div>
 
@@ -658,6 +673,9 @@ export default function App() {
             onOpenProfile={() => setIsProfileOpen(true)}
             onOpenAdvertiser={() => {
               window.location.hash = '#advertiser';
+            }}
+            onOpenSupport={() => {
+              window.location.hash = '#support';
             }}
             onLogout={handleLogout}
           />
