@@ -35,6 +35,35 @@ const getCurrentRoute = () => {
 };
 
 export default function App() {
+  // Light and dark mode settings
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('earn-plaza-theme') === 'light'
+        ? 'light'
+        : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  const toggleTheme = () => {
+    setTheme((previousTheme) =>
+      previousTheme === 'dark' ? 'light' : 'dark'
+    );
+  };
+
+  // Save the selected theme and apply it to the document
+  useEffect(() => {
+    try {
+      localStorage.setItem('earn-plaza-theme', theme);
+    } catch {
+      // Continue if browser storage is unavailable.
+    }
+
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
+
   const [user, setUser] = useState(null);
   const [balance, setBalance] = useState(0);
   const [tasks, setTasks] = useState([]);
@@ -654,7 +683,14 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white antialiased font-sans relative pb-12">
+    <div
+      data-theme={theme}
+      className={`min-h-screen antialiased font-sans relative pb-12 ${
+        theme === 'dark'
+          ? 'bg-slate-950 text-white'
+          : 'bg-slate-50 text-slate-900'
+      }`}
+    >
       {toastBanner}
 
       {!user ? (
@@ -667,6 +703,8 @@ export default function App() {
           <Header
             user={user}
             balance={balance}
+            theme={theme}
+            onToggleTheme={toggleTheme}
             onOpenWithdraw={() => setIsWithdrawOpen(true)}
             onOpenAuth={() => setIsAuthOpen(true)}
             onOpenDeposit={() => setIsDepositOpen(true)}

@@ -1,8 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Menu,
   X,
+  Sun,
+  Moon,
   Wallet,
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -21,6 +22,8 @@ import {
 export default function Header({
   user,
   balance,
+  theme = 'dark',
+  onToggleTheme,
   onOpenWithdraw,
   onOpenDeposit,
   onOpenAuth,
@@ -242,6 +245,31 @@ export default function Header({
                   <p className="px-4 pt-5 pb-2 text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">
                     More
                   </p>
+
+                  {/* Light / Dark theme toggle */}
+                  <button
+                    type="button"
+                    className={menuItemClass}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (typeof onToggleTheme === 'function') {
+                        onToggleTheme();
+                      }
+                    }}
+                    aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                  >
+                    {theme === 'dark' ? (
+                      <Sun className={iconClass} />
+                    ) : (
+                      <Moon className={iconClass} />
+                    )}
+
+                    {theme === 'dark'
+                      ? 'Switch to Light Mode'
+                      : 'Switch to Dark Mode'}
+
+                    <ChevronRight className="w-4 h-4 ml-auto" />
+                  </button>
 
                   <button
                     type="button"
