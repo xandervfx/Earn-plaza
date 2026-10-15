@@ -70,53 +70,57 @@ export default function WithdrawalModal({
 
   const pageIsActive = standalone || isOpen;
 
-  useEffect(() => {
-    if (!pageIsActive) return;
+useEffect(() => {
+  if (!pageIsActive) return;
 
-    let cancelled = false;
+  let cancelled = false;
 
-    const fetchLiveReferralCount = async () => {
-      setIsLoadingReferrals(true);
+  const fetchLiveReferralCount = async () => {
+    setIsLoadingReferrals(true);
+    setError('');
 
-      try {
-        const token = localStorage.getItem('token');
+    try {
+      const token = localStorage.getItem('token');
 
-        if (!token) {
-          throw new Error('Please log in to continue.');
-        }
-
-        const res = await fetch(`${API_BASE}/api/withdrawals`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          throw new Error(data.message || 'Unable to load your referral count.');
-        }
-
-        if (!cancelled) {
-          setUserReferrals(Number(data.totalReferrals) || 0);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || 'Unable to load referral information.');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingReferrals(false);
-        }
+      if (!token) {
+        throw new Error('Please log in to continue.');
       }
-    };
 
-    fetchLiveReferralCount();
+      const res = await fetch(`${API_BASE}/api/user/referrals`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [pageIsActive, user?.id]);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || data.message || 'Unable to load your referral count.'
+        );
+      }
+
+      if (!cancelled) {
+        setUserReferrals(Number(data.totalReferrals) || 0);
+      }
+    } catch (err) {
+      if (!cancelled) {
+        setError(err.message || 'Unable to load referral information.');
+      }
+    } finally {
+      if (!cancelled) {
+        setIsLoadingReferrals(false);
+      }
+    }
+  };
+
+  fetchLiveReferralCount();
+
+  return () => {
+    cancelled = true;
+  };
+}, [pageIsActive, user?.id]);
 
   useEffect(() => {
     if (standalone || !isOpen) return;
