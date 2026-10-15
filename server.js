@@ -919,12 +919,23 @@ app.post('/api/withdrawals', verifyToken, async (req, res) => {
 
     const activeReferrals = Number(refRows[0].total);
 
+
 console.log('[Withdrawal eligibility check]', {
+  database: process.env.DB_NAME,
   userId: req.user.id,
   referralCode: user.referral_code,
   activeReferrals,
   required: MIN_REFERRALS_REQUIRED
 });
+
+const [matchingReferrals] = await connection.query(
+  `SELECT id, referral_code, referred_by
+   FROM users
+   WHERE referred_by = ?`,
+  [user.referral_code]
+);
+
+console.log('[Matching referral records]', matchingReferrals);
 
     if (activeReferrals < MIN_REFERRALS_REQUIRED) {
       await connection.rollback();
