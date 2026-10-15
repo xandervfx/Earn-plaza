@@ -341,92 +341,141 @@ app.post('/api/user/change-password', verifyToken, async (req, res) => {
 
 // --- FORGOT AND RESET PASSWORD ---
 
+// Request a password-reset code (manual email delivery for now)
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body?.email || '').trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Please enter your email address.'
+      });
+    }
+
+    // Check whether the account exists.
     const [users] = await db.query(
-      'SELECT id FROM users WHERE email = ?',
+      'SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1',
       [email]
     );
 
     if (!users.length) {
-      return res.json({
-        success: true,
-        message: 'If that email exists, an OTP has been sent.'
+      return res.status(404).json({
+        error: 'No account was found with that email address.'
       });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-    await db.query(
-      'UPDATE users SET reset_otp = ?, reset_otp_expires = ? WHERE email = ?',
-      [otp, expiresAt, email]
+    // Generate a six-digit code.
+    const otp = String(
+      Math.floor(100000 + Math.random() * 900000)
     );
 
-    await transporter.sendMail({
-      from: '"Earn Plaza" <no-reply@earnplaza.com>',
-      to: email,
-      subject: 'Password Reset OTP',
-      text: `Your password reset OTP is: ${otp}. It expires in 15 minutes.`
-    });
+    // Code expires in 15 minutes.
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    res.json({ success: true, message: 'OTP sent to your email.' });
+    // Save the code in the existing database columns.
+    await db.query(
+      `UPDATE users
+       SET reset_otp = ?, reset_otp_expires = ?
+       WHERE id = ?`,
+      [otp, expiresAt, users[0].id]
+    );
+
+    // No automated email is sent here.
+    // Retrieve the saved code and send it manually.
+    console.log('Password reset requested for:', email);
+
+    return res.json({
+      success: true,
+      message:
+        'Your reset request has been accepted. Contact Earn Plaza support to receive your verification code.'
+    });
   } catch (err) {
     console.error('Forgot password error:', err);
-    res.status(500).json({ error: 'Failed to send reset email.' });
+
+    return res.status(500).json({
+      error: 'Unable to create a reset code right now. Please try again.'
+    });
   }
 });
 
+// Verify the code and update the password.
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const otp = String(req.body?.otp || '').trim();
+    const newPassword = String(req.body?.newPassword || '');
 
     if (!email || !otp || !newPassword) {
-      return res.status(400).json({ error: 'All fields are required.' });
+      return res.status(400).json({
+        error: 'All fields are required.'
+      });
     }
 
-    if (String(newPassword).length < 8) {
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json({
+        error: 'Enter a valid six-digit verification code.'
+      });
+    }
+
+    if (newPassword.length < 8) {
       return res.status(400).json({
         error: 'Password must be at least 8 characters.'
       });
     }
 
     const [users] = await db.query(
-      'SELECT id, reset_otp, reset_otp_expires FROM users WHERE email = ?',
+      `SELECT id, reset_otp, reset_otp_expires
+       FROM users
+       WHERE LOWER(email) = ?
+       LIMIT 1`,
       [email]
     );
 
     if (!users.length) {
-      return res.status(400).json({ error: 'Invalid request.' });
+      return res.status(400).json({
+        error: 'Invalid or expired verification code.'
+      });
     }
 
     const user = users[0];
 
+    // Check the code and its expiration.
     if (
-      user.reset_otp !== otp ||
+      !user.reset_otp ||
+      String(user.reset_otp) !== otp ||
       !user.reset_otp_expires ||
       new Date() > new Date(user.reset_otp_expires)
     ) {
-      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+      return res.status(400).json({
+        error: 'Invalid or expired verification code.'
+      });
     }
 
+    // Hash the new password using your existing bcrypt setup.
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
+    // Update the password and clear the code so it cannot be reused.
     await db.query(
       `UPDATE users
-       SET password = ?, reset_otp = NULL, reset_otp_expires = NULL
+       SET password = ?,
+           reset_otp = NULL,
+           reset_otp_expires = NULL
        WHERE id = ?`,
       [hashedPassword, user.id]
     );
 
-    res.json({ success: true, message: 'Password reset successfully!' });
+    return res.json({
+      success: true,
+      message: 'Password reset successfully! You can now log in.'
+    });
   } catch (err) {
     console.error('Reset password error:', err);
-    res.status(500).json({ error: 'Server error resetting password.' });
+
+    return res.status(500).json({
+      error: 'Server error resetting password.'
+    });
   }
 });
-
 // --- TASK ROUTES ---
 
 app.get('/api/tasks', optionalToken, async (req, res) => {
