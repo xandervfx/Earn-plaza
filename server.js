@@ -917,7 +917,14 @@ app.post('/api/withdrawals', verifyToken, async (req, res) => {
       [user.referral_code]
     );
 
-    const activeReferrals = refRows[0].total;
+    const activeReferrals = Number(refRows[0].total);
+
+console.log('[Withdrawal eligibility check]', {
+  userId: req.user.id,
+  referralCode: user.referral_code,
+  activeReferrals,
+  required: MIN_REFERRALS_REQUIRED
+});
 
     if (activeReferrals < MIN_REFERRALS_REQUIRED) {
       await connection.rollback();

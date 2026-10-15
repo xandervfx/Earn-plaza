@@ -38,7 +38,11 @@ export default function ReferralCard({ user }) {
     fetchReferralStats();
   }, [user]);
 
-  const referralLink = stats.referralLink || `http://localhost:5173/register?ref=${stats.referralCode || user?.referral_code || ''}`;
+  const referralCode = stats.referralCode || user?.referral_code || '';
+
+const referralLink = referralCode
+  ? `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}`
+  : '';
 
   const handleCopy = () => {
     if (!referralLink) return;
