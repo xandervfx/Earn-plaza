@@ -99,7 +99,7 @@ export default function Header({
     'w-5 h-5 shrink-0 text-slate-500 group-hover:text-emerald-400 transition-colors';
 
   return (
-    <header className="relative z-40 w-full max-w-full min-w-0 bg-slate-950 border-b border-slate-800 px-3 sm:px-6 py-3">
+    <header className="sticky top-0 z-[60] w-full max-w-full min-w-0 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800 px-3 sm:px-6 py-3 shadow-lg">
       <div className="w-full min-w-0 flex items-center justify-between gap-3">
 
         {/* Hamburger menu */}

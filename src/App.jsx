@@ -16,6 +16,7 @@ import AdvertiserCampaign from './components/AdvertiserCampaign';
 import ReferralCard from './components/ReferralCard';
 import ProfileModal from './components/ProfileModal';
 import ContactSupport from './components/ContactSupport';
+import BottomNavigation from './components/BottomNavigation';
 import {
   AlertCircle,
   CheckCircle2,
@@ -35,7 +36,6 @@ const getCurrentRoute = () => {
 };
 
 export default function App() {
-  // Light and dark mode settings
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem('earn-plaza-theme') === 'light'
@@ -52,7 +52,6 @@ export default function App() {
     );
   };
 
-  // Save the selected theme and apply it to the document
   useEffect(() => {
     try {
       localStorage.setItem('earn-plaza-theme', theme);
@@ -119,7 +118,9 @@ export default function App() {
   }, [currentRoute, user]);
 
   const goToDashboard = () => {
-    window.location.hash = '';
+    if (window.location.hash) {
+      window.location.hash = '';
+    }
   };
 
   const fetchTransactions = useCallback(async (userId) => {
@@ -377,7 +378,7 @@ export default function App() {
       );
 
   const toastBanner = toast.show ? (
-    <div className="fixed bottom-5 right-5 z-[100] animate-in slide-in-from-bottom-5 fade-in duration-300">
+    <div className="fixed bottom-24 sm:bottom-5 right-5 z-[100] animate-in slide-in-from-bottom-5 fade-in duration-300">
       <div
         className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold ${
           toast.type === 'error'
@@ -530,9 +531,7 @@ export default function App() {
 
           <div className="space-y-7">
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                1. Your Account
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">1. Your Account</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Provide accurate information when registering and keep your
                 login details secure. You are responsible for activity carried
@@ -542,9 +541,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                2. Tasks and Rewards
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">2. Tasks and Rewards</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Complete tasks according to their displayed instructions and
                 submit genuine proof when requested. Submissions may be
@@ -556,9 +553,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                3. Deposits and Verification
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">3. Deposits and Verification</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Follow the deposit instructions displayed on the platform and
                 submit accurate payment references and proof. A submitted
@@ -570,9 +565,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                4. Withdrawals
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">4. Withdrawals</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Withdrawal requests are subject to the eligibility conditions,
                 minimum amount, available balance, referral requirements, and
@@ -584,9 +577,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                5. Referrals and Campaigns
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">5. Referrals and Campaigns</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Use genuine referral and campaign activity. Do not spam,
                 mislead other users, fabricate engagement, or promise returns
@@ -597,9 +588,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                6. Prohibited Activity
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">6. Prohibited Activity</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Fraud, unauthorized access, exploitation of bugs, interference
                 with platform operations, and misuse of another user's
@@ -610,9 +599,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                7. Platform Availability
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">7. Platform Availability</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Features, tasks, and services may change or become temporarily
                 unavailable for maintenance, security, or operational reasons.
@@ -622,9 +609,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                8. Privacy and Security
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">8. Privacy and Security</h2>
               <p className="text-sm leading-7 text-slate-400">
                 Use the platform responsibly and only provide information
                 needed for your account and transactions. Do not share your
@@ -634,9 +619,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                9. Changes to These Terms
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">9. Changes to These Terms</h2>
               <p className="text-sm leading-7 text-slate-400">
                 These terms may be updated as the platform develops. Updated
                 terms should be published on this page. Continued use after
@@ -645,9 +628,7 @@ export default function App() {
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-white mb-2">
-                10. Questions and Support
-              </h2>
+              <h2 className="text-base font-bold text-white mb-2">10. Questions and Support</h2>
               <p className="text-sm leading-7 text-slate-400">
                 For questions about an account, task, deposit, or withdrawal,
                 open the Contact & Support page. Keep your transaction
@@ -685,7 +666,7 @@ export default function App() {
   return (
     <div
       data-theme={theme}
-      className={`min-h-screen antialiased font-sans relative pb-12 ${
+      className={`min-h-screen antialiased font-sans relative ${
         theme === 'dark'
           ? 'bg-slate-950 text-white'
           : 'bg-slate-50 text-slate-900'
@@ -715,15 +696,35 @@ export default function App() {
             onOpenSupport={() => {
               window.location.hash = '#support';
             }}
+            onOpenWallet={() => {
+              document.getElementById('wallet-section')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+              });
+            }}
+            onOpenReferrals={() => {
+              document.getElementById('referral-section')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+              });
+            }}
             onLogout={handleLogout}
           />
 
-          <main className="max-w-6xl mx-auto px-4 py-8">
+          <main className="max-w-6xl mx-auto px-4 pt-8 pb-32">
             <HeroBanner user={user} />
 
-            <ReferralCard user={user} />
+            <div
+              id="referral-section"
+              className="scroll-mt-24"
+            >
+              <ReferralCard user={user} />
+            </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-10">
+            <div
+              id="earn-section"
+              className="scroll-mt-24 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-10"
+            >
               <div>
                 <h3 className="text-xl font-black text-white">
                   Active Task Queue
@@ -789,10 +790,15 @@ export default function App() {
               ))}
             </div>
 
-            <div className="mt-10">
+            <div
+              id="wallet-section"
+              className="mt-10 scroll-mt-24"
+            >
               <TransactionLedger transactions={transactions} />
             </div>
           </main>
+
+          <BottomNavigation />
         </>
       )}
 
