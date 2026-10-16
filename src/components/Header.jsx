@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Menu,
@@ -39,6 +40,7 @@ export default function Header({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const menuScrollRef = useRef(null);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -61,6 +63,19 @@ export default function Header({
       document.removeEventListener('keydown', handleEscape);
     };
   }, []);
+
+  // Prevent the page behind the open menu from scrolling.
+  // The menu itself remains scrollable.
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [menuOpen]);
 
   const navigateTo = (page) => {
     setMenuOpen(false);
@@ -93,7 +108,7 @@ export default function Header({
   };
 
   const menuItemClass =
-    'group w-full flex items-center gap-3 px-4 py-3.5 text-sm text-slate-300 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all duration-200 text-left';
+    'group w-full flex items-center gap-3 px-4 py-3.5 text-sm text-slate-300 hover:text-emerald-300 hover:bg-emerald-500/10 transition-all duration-200 text-left shrink-0';
 
   const iconClass =
     'w-5 h-5 shrink-0 text-slate-500 group-hover:text-emerald-400 transition-colors';
@@ -121,6 +136,7 @@ export default function Header({
 
           {menuOpen && (
             <>
+              {/* Backdrop */}
               <button
                 type="button"
                 aria-label="Close navigation menu"
@@ -128,11 +144,13 @@ export default function Header({
                 onClick={() => setMenuOpen(false)}
               />
 
+              {/* Scrollable menu panel */}
               <nav
                 aria-label="Main navigation"
-                className="absolute left-0 top-full z-50 mt-3 w-72 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl overflow-hidden"
+                className="absolute left-0 top-full z-50 mt-3 w-72 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl flex flex-col overflow-hidden"
               >
-                <div className="p-5 bg-gradient-to-br from-emerald-500/15 to-transparent border-b border-slate-800">
+                {/* Menu header */}
+                <div className="shrink-0 p-5 bg-gradient-to-br from-emerald-500/15 to-transparent border-b border-slate-800">
                   <div className="flex items-center justify-between gap-2">
                     <button
                       type="button"
@@ -154,7 +172,15 @@ export default function Header({
                   </p>
                 </div>
 
-                <div className="py-2">
+                {/* Independently scrollable menu items */}
+                <div
+                  ref={menuScrollRef}
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-2"
+                  style={{
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'thin'
+                  }}
+                >
                   <p className="px-4 pt-3 pb-2 text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">
                     Main Menu
                   </p>
@@ -246,7 +272,6 @@ export default function Header({
                     More
                   </p>
 
-                  {/* Light / Dark theme toggle */}
                   <button
                     type="button"
                     className={menuItemClass}
@@ -314,7 +339,8 @@ export default function Header({
                   </button>
                 </div>
 
-                <div className="border-t border-slate-800 p-3">
+                {/* Logout stays visible at the bottom */}
+                <div className="shrink-0 border-t border-slate-800 p-3 bg-slate-950">
                   {user ? (
                     <button
                       type="button"
