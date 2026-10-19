@@ -478,33 +478,18 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 // --- TASK ROUTES ---
 
-app.get('/api/tasks', optionalToken, async (req, res) => {
-  try {
-    let query = `
-      SELECT * FROM tasks
-      WHERE (expires_at IS NULL OR expires_at > NOW())
-      AND slots_claimed < slots
-    `;
-    const params = [];
-
-    if (req.user && req.user.id) {
-      query += ' AND id NOT IN (SELECT task_id FROM task_submissions WHERE user_id = ?)';
-      params.push(req.user.id);
-    }
-
-    query += ' ORDER BY created_at DESC';
-
-    const [tasks] = await db.query(query, params);
-    res.json(tasks);
-  } catch (err) {
-    console.error('Fetch tasks error:', err);
-    res.status(500).json({ error: 'Failed to fetch tasks.' });
-  }
-});
 
 app.post('/api/tasks', verifyToken, async (req, res) => {
   try {
-    const { title, description, reward, category, slots, durationHours } = req.body;
+    const {
+      title,
+      description,
+      reward,
+      category,
+      slots,
+      durationHours,
+      link
+    } = req.body;
 
     if (!title || !description || !reward) {
       return res.status(400).json({
@@ -512,17 +497,42 @@ app.post('/api/tasks', verifyToken, async (req, res) => {
       });
     }
 
+    // Validate the task link if one was provided.
+    let taskLink = null;
+
+    if (typeof link === 'string' && link.trim()) {
+      try {
+        const parsedLink = new URL(link.trim());
+
+        if (!['http:', 'https:'].includes(parsedLink.protocol)) {
+          return res.status(400).json({
+            error: 'Task link must begin with http:// or https://.'
+          });
+        }
+
+        taskLink = parsedLink.href;
+      } catch {
+        return res.status(400).json({
+          error: 'Please enter a valid task URL, including https://.'
+        });
+      }
+    }
+
     const hours = parseInt(durationHours, 10) || 24;
-    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + hours * 60 * 60 * 1000
+    );
     const taskSlots = parseInt(slots, 10) || 10;
 
     const [result] = await db.query(
       `INSERT INTO tasks
-       (title, description, reward, category, slots, expires_at, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (title, description, link, reward, category, slots,
+        expires_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        title,
-        description,
+        title.trim(),
+        description.trim(),
+        taskLink,
         parseFloat(reward),
         category || 'social',
         taskSlots,
@@ -539,19 +549,12 @@ app.post('/api/tasks', verifyToken, async (req, res) => {
     res.status(201).json(newTask[0]);
   } catch (err) {
     console.error('Create task error:', err);
-    res.status(500).json({ error: 'Failed to create task.' });
+    res.status(500).json({
+      error: 'Failed to create task.'
+    });
   }
 });
 
-app.delete('/api/tasks/:id', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    await db.query('DELETE FROM tasks WHERE id = ?', [req.params.id]);
-    res.json({ success: true, message: 'Task deleted successfully.' });
-  } catch (err) {
-    console.error('Delete task error:', err);
-    res.status(500).json({ error: 'Failed to delete task.' });
-  }
-});
 
 app.post('/api/tasks/submit', verifyToken, async (req, res) => {
   try {
