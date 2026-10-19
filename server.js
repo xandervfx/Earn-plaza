@@ -684,6 +684,108 @@ app.post('/api/tasks/submit', verifyToken, async (req, res) => {
 });
 
 
+ // --- SUPPORT REQUEST ROUTE ---
+
+app.post('/api/support', optionalToken, async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const email = String(req.body?.email || '').trim();
+    const topic = String(req.body?.topic || 'other').trim();
+    const reference = String(req.body?.reference || '').trim();
+    const message = String(req.body?.message || '').trim();
+
+    const allowedTopics = [
+      'deposit',
+      'withdrawal',
+      'task',
+      'account',
+      'referral',
+      'other'
+    ];
+
+    if (!name || !email || !message) {
+      return res.status(400).json({
+        error: 'Name, email, and message are required.'
+      });
+    }
+
+    if (name.length > 100 || email.length > 254 ||
+        reference.length > 150 || message.length > 3000) {
+      return res.status(400).json({
+        error: 'One or more fields exceed the allowed length.'
+      });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        error: 'Please provide a valid email address.'
+      });
+    }
+
+    if (message.length < 10) {
+      return res.status(400).json({
+        error: 'Please provide more details about your issue.'
+      });
+    }
+
+    if (!allowedTopics.includes(topic)) {
+      return res.status(400).json({
+        error: 'Please select a valid support topic.'
+      });
+    }
+
+    // Email credentials must be configured in Railway.
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('Support email credentials are not configured.');
+
+      return res.status(503).json({
+        error: 'Support email is temporarily unavailable. Please email earnplazza@gmail.com directly.'
+      });
+    }
+
+    const topicLabels = {
+      deposit: 'Deposit problem',
+      withdrawal: 'Withdrawal problem',
+      task: 'Task or reward',
+      account: 'Login or account',
+      referral: 'Referral problem',
+      other: 'Other enquiry'
+    };
+
+    await transporter.sendMail({
+      from: `"Earn Plaza Support" <${process.env.EMAIL_USER}>`,
+      to: 'earnplazza@gmail.com',
+      replyTo: email,
+      subject: `[Earn Plaza Support] ${topicLabels[topic]}`,
+      text: [
+        'New support request received.',
+        '',
+        `Name: ${name}`,
+        `Email: ${email}`,
+        `Topic: ${topicLabels[topic]}`,
+        `Reference: ${reference || 'Not provided'}`,
+        '',
+        'Message:',
+        message
+      ].join('\n')
+    });
+
+    console.log('Support request email sent for topic:', topic);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your support request was sent successfully. Our team will review it.'
+    });
+  } catch (err) {
+    console.error('Support request email error:', err);
+
+    return res.status(500).json({
+      error: 'We could not send your support request right now. Please try emailing earnplazza@gmail.com directly.'
+    });
+  }
+});
+
+
 // --- DEPOSIT ROUTES ---
 
 app.post(
