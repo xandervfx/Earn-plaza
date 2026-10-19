@@ -479,6 +479,44 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // --- TASK ROUTES ---
 
 
+ // --- TASK ROUTES ---
+
+// GET ALL AVAILABLE TASKS
+app.get('/api/tasks', optionalToken, async (req, res) => {
+  try {
+    let query = `
+      SELECT * FROM tasks
+      WHERE (expires_at IS NULL OR expires_at > NOW())
+      AND slots_claimed < slots
+    `;
+
+    const params = [];
+
+    if (req.user && req.user.id) {
+      query += `
+        AND id NOT IN (
+          SELECT task_id
+          FROM task_submissions
+          WHERE user_id = ?
+        )
+      `;
+      params.push(req.user.id);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const [tasks] = await db.query(query, params);
+    res.json(tasks);
+  } catch (err) {
+    console.error('Fetch tasks error:', err);
+    res.status(500).json({
+      error: 'Failed to fetch tasks.'
+    });
+  }
+});
+
+
+// CREATE A TASK
 app.post('/api/tasks', verifyToken, async (req, res) => {
   try {
     const {
@@ -491,13 +529,29 @@ app.post('/api/tasks', verifyToken, async (req, res) => {
       link
     } = req.body;
 
-    if (!title || !description || !reward) {
+    if (
+      typeof title !== 'string' ||
+      !title.trim() ||
+      typeof description !== 'string' ||
+      !description.trim() ||
+      reward === undefined ||
+      reward === null ||
+      reward === ''
+    ) {
       return res.status(400).json({
         error: 'Title, description, and reward are required.'
       });
     }
 
-    // Validate the task link if one was provided.
+    const taskReward = Number(reward);
+
+    if (!Number.isFinite(taskReward) || taskReward <= 0) {
+      return res.status(400).json({
+        error: 'Reward must be a valid amount greater than zero.'
+      });
+    }
+
+    // Validate the optional task link.
     let taskLink = null;
 
     if (typeof link === 'string' && link.trim()) {
@@ -506,7 +560,7 @@ app.post('/api/tasks', verifyToken, async (req, res) => {
 
         if (!['http:', 'https:'].includes(parsedLink.protocol)) {
           return res.status(400).json({
-            error: 'Task link must begin with http:// or https://.'
+            error: 'Task link must use http:// or https://.'
           });
         }
 
@@ -518,11 +572,21 @@ app.post('/api/tasks', verifyToken, async (req, res) => {
       }
     }
 
-    const hours = parseInt(durationHours, 10) || 24;
+    const parsedHours = parseInt(durationHours, 10);
+    const hours =
+      Number.isFinite(parsedHours) && parsedHours > 0
+        ? parsedHours
+        : 24;
+
+    const parsedSlots = parseInt(slots, 10);
+    const taskSlots =
+      Number.isFinite(parsedSlots) && parsedSlots > 0
+        ? parsedSlots
+        : 10;
+
     const expiresAt = new Date(
       Date.now() + hours * 60 * 60 * 1000
     );
-    const taskSlots = parseInt(slots, 10) || 10;
 
     const [result] = await db.query(
       `INSERT INTO tasks
@@ -533,7 +597,7 @@ app.post('/api/tasks', verifyToken, async (req, res) => {
         title.trim(),
         description.trim(),
         taskLink,
-        parseFloat(reward),
+        taskReward,
         category || 'social',
         taskSlots,
         expiresAt,
@@ -546,16 +610,17 @@ app.post('/api/tasks', verifyToken, async (req, res) => {
       [result.insertId]
     );
 
-    res.status(201).json(newTask[0]);
+    return res.status(201).json(newTask[0]);
   } catch (err) {
     console.error('Create task error:', err);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to create task.'
     });
   }
 });
 
 
+// SUBMIT TASK PROOF
 app.post('/api/tasks/submit', verifyToken, async (req, res) => {
   try {
     const { taskId, proof } = req.body;
@@ -581,7 +646,8 @@ app.post('/api/tasks/submit', verifyToken, async (req, res) => {
     }
 
     const [existing] = await db.query(
-      'SELECT id FROM task_submissions WHERE task_id = ? AND user_id = ?',
+      `SELECT id FROM task_submissions
+       WHERE task_id = ? AND user_id = ?`,
       [taskId, req.user.id]
     );
 
@@ -592,26 +658,31 @@ app.post('/api/tasks/submit', verifyToken, async (req, res) => {
     }
 
     await db.query(
-      'INSERT INTO task_submissions (task_id, user_id, proof, status) VALUES (?, ?, ?, "pending")',
+      `INSERT INTO task_submissions
+       (task_id, user_id, proof, status)
+       VALUES (?, ?, ?, 'pending')`,
       [taskId, req.user.id, proof]
     );
 
     await db.query(
-      'UPDATE tasks SET slots_claimed = slots_claimed + 1 WHERE id = ?',
+      `UPDATE tasks
+       SET slots_claimed = slots_claimed + 1
+       WHERE id = ?`,
       [tasks[0].id]
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Proof submitted successfully! Waiting for admin approval.'
     });
   } catch (err) {
     console.error('Task submission error:', err);
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Server error processing task submission.'
     });
   }
 });
+
 
 // --- DEPOSIT ROUTES ---
 
