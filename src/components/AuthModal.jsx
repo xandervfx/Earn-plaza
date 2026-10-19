@@ -1,6 +1,16 @@
 // src/components/AuthModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, User, Gift, ArrowRight, Sparkles } from 'lucide-react';
+import {
+  X,
+  Mail,
+  Lock,
+  User,
+  Gift,
+  ArrowRight,
+  Sparkles,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose, onLoginSuccess, onOpenForgotPassword }) {
   const [mode, setMode] = useState('login'); // 'login' or 'register'
@@ -12,6 +22,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, onOpenForgo
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Automatically extract ?ref= parameter from the browser URL when component loads or opens
   useEffect(() => {
@@ -183,22 +194,41 @@ const endpoint = mode === 'register'
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-              />
-            </div>
-          </div>
+
+<div>
+  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+    Password
+  </label>
+
+  <div className="relative">
+    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+
+    <input
+      type={showPassword ? 'text' : 'password'}
+      name="password"
+      value={formData.password}
+      onChange={handleChange}
+      placeholder="••••••••"
+      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-11 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+    />
+
+    <button
+      type="button"
+      onClick={() => setShowPassword((prev) => !prev)}
+      aria-label={showPassword ? 'Hide password' : 'Show password'}
+      aria-pressed={showPassword}
+      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-emerald-400 transition cursor-pointer"
+    >
+      {showPassword ? (
+        <EyeOff className="w-5 h-5" />
+      ) : (
+        <Eye className="w-5 h-5" />
+      )}
+    </button>
+  </div>
+</div>
+
 
           {mode === 'login' && (
             <div className="flex justify-end mt-1 mb-2">
