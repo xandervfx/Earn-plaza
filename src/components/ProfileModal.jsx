@@ -1,4 +1,4 @@
-
+// src/components/ProfileModal.jsx
 import React, { useEffect, useState } from 'react';
 import {
   X,
@@ -7,7 +7,9 @@ import {
   Save,
   LoaderCircle,
   ShieldCheck,
-  ArrowLeft
+  ArrowLeft,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { API_BASE } from './config';
 
@@ -20,9 +22,16 @@ export default function ProfileModal({
 }) {
   const [profile, setProfile] = useState(user || {});
   const [name, setName] = useState(user?.name || '');
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Independent visibility controls for each password.
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -51,10 +60,17 @@ export default function ProfileModal({
     setNewPassword('');
     setConfirmPassword('');
 
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+
     const authToken = token();
 
     if (!authToken) {
-      showMessage('Your session has expired. Please log in again.', 'error');
+      showMessage(
+        'Your session has expired. Please log in again.',
+        'error'
+      );
       return;
     }
 
@@ -62,17 +78,22 @@ export default function ProfileModal({
       setLoadingProfile(true);
 
       try {
-        const response = await fetch(`${API_BASE}/api/user/profile`, {
-          headers: {
-            Authorization: `Bearer ${authToken}`
+        const response = await fetch(
+          `${API_BASE}/api/user/profile`,
+          {
+            headers: {
+              Authorization: `Bearer ${authToken}`
+            }
           }
-        });
+        );
 
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
           throw new Error(
-            data.error || data.message || 'Could not load your profile.'
+            data.error ||
+            data.message ||
+            'Could not load your profile.'
           );
         }
 
@@ -141,7 +162,10 @@ export default function ProfileModal({
     }
 
     if (cleanName.length > 100) {
-      showMessage('Your name must be 100 characters or fewer.', 'error');
+      showMessage(
+        'Your name must be 100 characters or fewer.',
+        'error'
+      );
       return;
     }
 
@@ -158,22 +182,27 @@ export default function ProfileModal({
     setSavingProfile(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/user/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify({
-          name: cleanName
-        })
-      });
+      const response = await fetch(
+        `${API_BASE}/api/user/profile`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`
+          },
+          body: JSON.stringify({
+            name: cleanName
+          })
+        }
+      );
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
-          data.error || data.message || 'Could not update your profile.'
+          data.error ||
+          data.message ||
+          'Could not update your profile.'
         );
       }
 
@@ -203,7 +232,10 @@ export default function ProfileModal({
     setMessage('');
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      showMessage('Please complete all password fields.', 'error');
+      showMessage(
+        'Please complete all password fields.',
+        'error'
+      );
       return;
     }
 
@@ -216,7 +248,10 @@ export default function ProfileModal({
     }
 
     if (newPassword !== confirmPassword) {
-      showMessage('The new passwords do not match.', 'error');
+      showMessage(
+        'The new passwords do not match.',
+        'error'
+      );
       return;
     }
 
@@ -260,13 +295,19 @@ export default function ProfileModal({
 
       if (!response.ok) {
         throw new Error(
-          data.error || data.message || 'Could not change your password.'
+          data.error ||
+          data.message ||
+          'Could not change your password.'
         );
       }
 
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
 
       showMessage(
         data.message || 'Your password was changed successfully.'
@@ -286,6 +327,68 @@ export default function ProfileModal({
 
   const labelClass =
     'block text-xs font-bold text-slate-300 mb-2';
+
+  // Reusable password input with its own eye toggle.
+  const renderPasswordField = ({
+    id,
+    label,
+    value,
+    onChange,
+    visible,
+    setVisible,
+    placeholder,
+    autoComplete
+  }) => (
+    <div>
+      <label htmlFor={id} className={labelClass}>
+        {label}
+      </label>
+
+      <div className="relative w-full">
+        <input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          className={`${inputClass} pr-14`}
+          required
+        />
+
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setVisible((previous) => !previous)}
+          aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+          aria-pressed={visible}
+          title={visible ? 'Hide password' : 'Show password'}
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-10 h-10 rounded-lg text-slate-300 bg-slate-900 hover:text-emerald-400 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+          style={{
+            display: 'flex',
+            visibility: 'visible',
+            opacity: 1
+          }}
+        >
+          {visible ? (
+            <EyeOff
+              size={22}
+              strokeWidth={2}
+              aria-hidden="true"
+              className="shrink-0"
+            />
+          ) : (
+            <Eye
+              size={22}
+              strokeWidth={2}
+              aria-hidden="true"
+              className="shrink-0"
+            />
+          )}
+        </button>
+      </div>
+    </div>
+  );
 
   const content = (
     <section
@@ -366,6 +469,7 @@ export default function ProfileModal({
           </p>
         )}
 
+        {/* Account details */}
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <h3 className="text-sm font-black text-white">
             Account Details
@@ -421,6 +525,7 @@ export default function ProfileModal({
 
         <div className="border-t border-slate-800" />
 
+        {/* Change password */}
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="flex items-center gap-2">
             <LockKeyhole className="w-4 h-4 text-emerald-400" />
@@ -429,55 +534,42 @@ export default function ProfileModal({
             </h3>
           </div>
 
-          <div>
-            <label htmlFor="current-password" className={labelClass}>
-              Current Password
-            </label>
-            <input
-              id="current-password"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              className={inputClass}
-              placeholder="Enter current password"
-              required
-            />
-          </div>
+          {renderPasswordField({
+            id: 'current-password',
+            label: 'Current Password',
+            value: currentPassword,
+            onChange: (event) => setCurrentPassword(event.target.value),
+            visible: showCurrentPassword,
+            setVisible: setShowCurrentPassword,
+            placeholder: 'Enter current password',
+            autoComplete: 'current-password'
+          })}
 
-          <div>
-            <label htmlFor="new-password" className={labelClass}>
-              New Password
-            </label>
-            <input
-              id="new-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              className={inputClass}
-              placeholder="At least 8 characters"
-              required
-            />
-          </div>
+          {renderPasswordField({
+            id: 'new-password',
+            label: 'New Password',
+            value: newPassword,
+            onChange: (event) => setNewPassword(event.target.value),
+            visible: showNewPassword,
+            setVisible: setShowNewPassword,
+            placeholder: 'At least 8 characters',
+            autoComplete: 'new-password'
+          })}
 
-          <div>
-            <label htmlFor="confirm-password" className={labelClass}>
-              Confirm New Password
-            </label>
-            <input
-              id="confirm-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              className={inputClass}
-              placeholder="Re-enter new password"
-              required
-            />
-          </div>
+          {renderPasswordField({
+            id: 'confirm-password',
+            label: 'Confirm New Password',
+            value: confirmPassword,
+            onChange: (event) => setConfirmPassword(event.target.value),
+            visible: showConfirmPassword,
+            setVisible: setShowConfirmPassword,
+            placeholder: 'Re-enter new password',
+            autoComplete: 'new-password'
+          })}
+
+          <p className="text-xs text-slate-500">
+            Use the eye icon in each field to show or hide that password.
+          </p>
 
           <button
             type="submit"
@@ -489,7 +581,9 @@ export default function ProfileModal({
             ) : (
               <LockKeyhole className="w-4 h-4" />
             )}
-            {changingPassword ? 'Updating Password...' : 'Update Password'}
+            {changingPassword
+              ? 'Updating Password...'
+              : 'Update Password'}
           </button>
         </form>
       </div>
@@ -516,7 +610,7 @@ export default function ProfileModal({
               Account Settings
             </p>
             <h1 className="text-2xl sm:text-3xl font-black mt-2">
-              Profile & Security
+              Profile &amp; Security
             </h1>
             <p className="text-slate-400 text-sm mt-2">
               Update your personal details and keep your account secure.
