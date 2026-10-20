@@ -213,19 +213,21 @@ const endpoint = mode === 'register'
       className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-11 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
     />
 
-    <button
-      type="button"
-      onClick={() => setShowPassword((prev) => !prev)}
-      aria-label={showPassword ? 'Hide password' : 'Show password'}
-      aria-pressed={showPassword}
-      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-emerald-400 transition cursor-pointer"
-    >
-      {showPassword ? (
-        <EyeOff className="w-5 h-5" />
-      ) : (
-        <Eye className="w-5 h-5" />
-      )}
-    </button>
+
+<button
+  type="button"
+  onMouseDown={(e) => e.preventDefault()}
+  onClick={() => setShowPassword((prev) => !prev)}
+  aria-label={showPassword ? 'Hide password' : 'Show password'}
+  aria-pressed={showPassword}
+  className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition cursor-pointer"
+>
+  {showPassword ? (
+    <EyeOff className="w-5 h-5 pointer-events-none" />
+  ) : (
+    <Eye className="w-5 h-5 pointer-events-none" />
+  )}
+</button>
   </div>
 </div>
 
