@@ -5,12 +5,14 @@ import {
   Zap,
   Users,
   Wallet,
-  UserRound
+  UserRound,
+  Pickaxe
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'earn', label: 'Earn', icon: Zap },
+  { id: 'mining', label: 'Mining', icon: Pickaxe },
   { id: 'refer', label: 'Refer', icon: Users },
   { id: 'wallet', label: 'Wallet', icon: Wallet },
   { id: 'profile', label: 'Profile', icon: UserRound }
@@ -21,6 +23,13 @@ export default function BottomNavigation() {
 
   useEffect(() => {
     const updateActiveItem = () => {
+      const route = window.location.hash.replace('#', '');
+
+      if (route === 'mining' || route === 'profile') {
+        setActive(route);
+        return;
+      }
+
       const marker = window.scrollY + window.innerHeight * 0.35;
 
       if (window.scrollY < 100) {
@@ -28,37 +37,36 @@ export default function BottomNavigation() {
         return;
       }
 
-      const wallet = document.getElementById('wallet-section');
-      const earn = document.getElementById('earn-section');
-      const refer = document.getElementById('referral-section');
+      const sections = [
+        ['wallet', 'wallet-section'],
+        ['earn', 'earn-section'],
+        ['refer', 'referral-section']
+      ];
 
-      if (wallet && marker >= wallet.offsetTop) {
-        setActive('wallet');
-      } else if (earn && marker >= earn.offsetTop) {
-        setActive('earn');
-      } else if (refer && marker >= refer.offsetTop) {
-        setActive('refer');
-      } else {
-        setActive('home');
-      }
+      const current = sections.find(([id, sectionId]) => {
+        const section = document.getElementById(sectionId);
+        return section && marker >= section.offsetTop;
+      });
+
+      setActive(current?.[0] || 'home');
     };
 
-    window.addEventListener('scroll', updateActiveItem, {
-      passive: true
-    });
+    window.addEventListener('scroll', updateActiveItem, { passive: true });
+    window.addEventListener('hashchange', updateActiveItem);
 
     updateActiveItem();
 
     return () => {
       window.removeEventListener('scroll', updateActiveItem);
+      window.removeEventListener('hashchange', updateActiveItem);
     };
   }, []);
 
   const handleNavigation = (id) => {
     setActive(id);
 
-    if (id === 'profile') {
-      window.location.hash = '#profile';
+    if (id === 'mining' || id === 'profile') {
+      window.location.hash = `#${id}`;
       return;
     }
 
@@ -70,12 +78,7 @@ export default function BottomNavigation() {
       );
 
       window.dispatchEvent(new HashChangeEvent('hashchange'));
-
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -85,14 +88,10 @@ export default function BottomNavigation() {
       wallet: 'wallet-section'
     };
 
-    const section = document.getElementById(sectionIds[id]);
-
-    if (section) {
-      section.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }
+    document.getElementById(sectionIds[id])?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
   };
 
   return (
@@ -100,7 +99,7 @@ export default function BottomNavigation() {
       aria-label="Bottom navigation"
       className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-800 bg-slate-950/95 backdrop-blur-xl shadow-[0_-8px_30px_rgba(0,0,0,0.25)]"
     >
-      <div className="max-w-xl mx-auto grid grid-cols-5 px-2 pt-2 pb-3">
+      <div className="max-w-xl mx-auto grid grid-cols-6 px-1 pt-2 pb-3">
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
           const isActive = active === id;
 
@@ -111,17 +110,15 @@ export default function BottomNavigation() {
               onClick={() => handleNavigation(id)}
               aria-label={label}
               aria-current={isActive ? 'page' : undefined}
-              className={`relative flex flex-col items-center justify-center gap-1.5 rounded-xl py-2 transition-all duration-200 active:scale-90 ${
+              className={`relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-all duration-200 active:scale-90 ${
                 isActive
                   ? 'text-emerald-400'
                   : 'text-slate-500 hover:text-slate-200'
               }`}
             >
               <span
-                className={`flex items-center justify-center rounded-xl p-1.5 transition-all duration-200 ${
-                  isActive
-                    ? 'bg-emerald-500/15 scale-110'
-                    : 'scale-100'
+                className={`flex items-center justify-center rounded-xl p-1.5 transition-all ${
+                  isActive ? 'bg-emerald-500/15 scale-110' : ''
                 }`}
               >
                 <Icon
@@ -131,7 +128,7 @@ export default function BottomNavigation() {
               </span>
 
               <span
-                className={`text-[10px] transition-all duration-200 ${
+                className={`text-[10px] ${
                   isActive ? 'font-extrabold' : 'font-medium'
                 }`}
               >
@@ -139,7 +136,7 @@ export default function BottomNavigation() {
               </span>
 
               <span
-                className={`absolute top-0 h-0.5 rounded-full bg-emerald-400 transition-all duration-200 ${
+                className={`absolute top-0 h-0.5 rounded-full bg-emerald-400 transition-all ${
                   isActive ? 'w-6 opacity-100' : 'w-0 opacity-0'
                 }`}
               />
