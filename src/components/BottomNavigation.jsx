@@ -121,10 +121,14 @@ export default function BottomNavigation() {
                   isActive ? 'bg-emerald-500/15 scale-110' : ''
                 }`}
               >
-                <Icon
-                  className="w-5 h-5"
-                  strokeWidth={isActive ? 2.5 : 2}
-                />
+<Icon
+  className={`transition-all duration-300 ${
+    id === 'mining'
+      ? 'w-7 h-7 text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.9)]'
+      : 'w-5 h-5'
+  }`}
+  strokeWidth={id === 'mining' ? 2.8 : isActive ? 2.5 : 2}
+/>
               </span>
 
               <span
@@ -138,6 +142,9 @@ export default function BottomNavigation() {
               <span
                 className={`absolute top-0 h-0.5 rounded-full bg-emerald-400 transition-all ${
                   isActive ? 'w-6 opacity-100' : 'w-0 opacity-0'
+                  id === 'mining'
+  ? 'shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+  : ''
                 }`}
               />
             </button>
