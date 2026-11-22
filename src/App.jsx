@@ -411,14 +411,15 @@ export default function App() {
     );
   }
 
-  if (currentRoute === 'mining' && user) {
-    return (
-      <div className="min-h-screen bg-[#050B18] text-white antialiased">
-        {toastBanner}
-        <MiningPage />
-      </div>
-    );
-  }
+if (currentRoute === 'mining' && user) {
+  return (
+    <div className="min-h-screen bg-[#050B18] text-white antialiased pb-24">
+      {toastBanner}
+      <MiningPage />
+      <BottomNavigation />
+    </div>
+  );
+}
 
   if (currentRoute === 'support') {
     return (
