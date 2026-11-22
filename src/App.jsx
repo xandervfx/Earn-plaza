@@ -17,6 +17,7 @@ import ReferralCard from './components/ReferralCard';
 import ProfileModal from './components/ProfileModal';
 import ContactSupport from './components/ContactSupport';
 import BottomNavigation from './components/BottomNavigation';
+import MiningPage from './components/MiningPage';
 import {
   AlertCircle,
   CheckCircle2,
@@ -110,7 +111,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const privateRoutes = ['deposit', 'withdraw', 'profile'];
+    const privateRoutes = ['deposit', 'withdraw', 'profile', 'mining'];
 
     if (privateRoutes.includes(currentRoute) && !user) {
       setIsAuthOpen(true);
@@ -149,12 +150,12 @@ export default function App() {
       const historyData = await res.json();
 
       if (Array.isArray(historyData)) {
-        const formattedHistory = historyData.map((item, index) => ({
-          ...item,
-          _uniqueKey: `tx-${item.id || item.transaction_id || 'item'}-${index}`
-        }));
-
-        setTransactions(formattedHistory);
+        setTransactions(
+          historyData.map((item, index) => ({
+            ...item,
+            _uniqueKey: `tx-${item.id || item.transaction_id || 'item'}-${index}`
+          }))
+        );
       }
     } catch (err) {
       console.warn('Transaction history notice:', err.message);
@@ -190,9 +191,7 @@ export default function App() {
 
           const userId = data.user.id || data.user.user_id;
 
-          if (userId) {
-            fetchTransactions(userId);
-          }
+          if (userId) fetchTransactions(userId);
         }
       } catch (err) {
         if (!cancelled) {
@@ -253,7 +252,7 @@ export default function App() {
   const handleTaskCreated = (newTask) => {
     if (newTask) {
       setTasks((previousTasks) => [newTask, ...previousTasks]);
-      showToast('New campaign created successfully!', 'success');
+      showToast('New campaign created successfully!');
     }
   };
 
@@ -307,11 +306,9 @@ export default function App() {
 
       const userId = user.id || user.user_id;
 
-      if (userId) {
-        fetchTransactions(userId);
-      }
+      if (userId) fetchTransactions(userId);
 
-      showToast('Withdrawal request submitted successfully!', 'success');
+      showToast('Withdrawal request submitted successfully!');
       setIsWithdrawOpen(false);
 
       return data;
@@ -323,21 +320,17 @@ export default function App() {
   };
 
   const handleLoginSuccess = (userData, token) => {
-    if (token) {
-      localStorage.setItem('token', token);
-    }
+    if (token) localStorage.setItem('token', token);
 
     setUser(userData);
     setBalance(Number(userData.balance) || 0);
 
     const userId = userData.id || userData.user_id;
 
-    if (userId) {
-      fetchTransactions(userId);
-    }
+    if (userId) fetchTransactions(userId);
 
     setIsAuthOpen(false);
-    showToast(`Welcome back, ${userData.name || 'User'}!`, 'success');
+    showToast(`Welcome back, ${userData.name || 'User'}!`);
   };
 
   const handleLogout = () => {
@@ -350,7 +343,7 @@ export default function App() {
     localStorage.removeItem('token');
 
     goToDashboard();
-    showToast('Logged out successfully.', 'success');
+    showToast('Logged out successfully.');
   };
 
   const handleProfileUpdated = (updatedProfile) => {
@@ -367,7 +360,7 @@ export default function App() {
       setBalance(Number(updatedProfile.balance) || 0);
     }
 
-    showToast('Profile updated successfully!', 'success');
+    showToast('Profile updated successfully!');
   };
 
   const filteredTasks = selectedCategory === 'all'
@@ -394,7 +387,6 @@ export default function App() {
     </div>
   ) : null;
 
-  // Admin route: #admin
   if (currentRoute === 'admin') {
     return (
       <AdminDashboard
@@ -406,24 +398,28 @@ export default function App() {
     );
   }
 
-  // Advertiser route: #advertiser
   if (currentRoute === 'advertiser') {
     return (
       <AdvertiserCampaign
         user={user}
         onBackToSite={goToDashboard}
         onCampaignCreated={(newCampaign) => {
-          if (newCampaign) {
-            handleTaskCreated(newCampaign);
-          }
-
+          if (newCampaign) handleTaskCreated(newCampaign);
           goToDashboard();
         }}
       />
     );
   }
 
-  // Dedicated Contact & Support page: #support
+  if (currentRoute === 'mining' && user) {
+    return (
+      <div className="min-h-screen bg-[#050B18] text-white antialiased">
+        {toastBanner}
+        <MiningPage />
+      </div>
+    );
+  }
+
   if (currentRoute === 'support') {
     return (
       <div className="min-h-screen bg-slate-950 text-white antialiased">
@@ -433,7 +429,6 @@ export default function App() {
     );
   }
 
-  // Dedicated deposit page: #deposit
   if (currentRoute === 'deposit' && user) {
     return (
       <div className="min-h-screen bg-slate-950 text-white antialiased">
@@ -443,8 +438,7 @@ export default function App() {
           user={user}
           onSuccess={() => {
             showToast(
-              'Deposit request submitted. Your account will be credited after verification.',
-              'success'
+              'Deposit request submitted. Your account will be credited after verification.'
             );
           }}
         />
@@ -452,7 +446,6 @@ export default function App() {
     );
   }
 
-  // Dedicated withdrawal page: #withdraw
   if (currentRoute === 'withdraw' && user) {
     return (
       <div className="min-h-screen bg-slate-950 text-white antialiased">
@@ -467,7 +460,6 @@ export default function App() {
     );
   }
 
-  // Dedicated profile page: #profile
   if (currentRoute === 'profile' && user) {
     return (
       <div className="min-h-screen bg-slate-950 text-white antialiased">
@@ -481,7 +473,6 @@ export default function App() {
     );
   }
 
-  // Dedicated Terms & Conditions page: #terms
   if (currentRoute === 'terms') {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-200 antialiased">
@@ -714,10 +705,7 @@ export default function App() {
           <main className="max-w-6xl mx-auto px-4 pt-8 pb-32">
             <HeroBanner user={user} />
 
-            <div
-              id="referral-section"
-              className="scroll-mt-24"
-            >
+            <div id="referral-section" className="scroll-mt-24">
               <ReferralCard user={user} />
             </div>
 
@@ -790,10 +778,7 @@ export default function App() {
               ))}
             </div>
 
-            <div
-              id="wallet-section"
-              className="mt-10 scroll-mt-24"
-            >
+            <div id="wallet-section" className="mt-10 scroll-mt-24">
               <TransactionLedger transactions={transactions} />
             </div>
           </main>
@@ -843,13 +828,10 @@ export default function App() {
               .then((data) => {
                 showToast(
                   data.message ||
-                    'Proof submitted successfully for verification!',
-                  'success'
+                    'Proof submitted successfully for verification!'
                 );
 
-                if (currentUserId) {
-                  fetchTransactions(currentUserId);
-                }
+                if (currentUserId) fetchTransactions(currentUserId);
 
                 setTasks((previousTasks) =>
                   previousTasks.filter(
@@ -893,8 +875,7 @@ export default function App() {
         onClose={() => setIsDepositOpen(false)}
         onSuccess={() => {
           showToast(
-            'Deposit request submitted. Your account will be credited after verification.',
-            'success'
+            'Deposit request submitted. Your account will be credited after verification.'
           );
         }}
       />
