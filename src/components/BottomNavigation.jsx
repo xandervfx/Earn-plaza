@@ -102,6 +102,7 @@ export default function BottomNavigation() {
       <div className="max-w-xl mx-auto grid grid-cols-6 px-1 pt-2 pb-3">
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
           const isActive = active === id;
+          const isMining = id === 'mining';
 
           return (
             <button
@@ -113,27 +114,33 @@ export default function BottomNavigation() {
               className={`relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition-all duration-200 active:scale-90 ${
                 isActive
                   ? 'text-emerald-400'
-                  : 'text-slate-500 hover:text-slate-200'
+                  : isMining
+                    ? 'text-emerald-400'
+                    : 'text-slate-500 hover:text-slate-200'
               }`}
             >
               <span
-                className={`flex items-center justify-center rounded-xl p-1.5 transition-all ${
-                  isActive ? 'bg-emerald-500/15 scale-110' : ''
+                className={`flex items-center justify-center rounded-xl transition-all duration-300 ${
+                  isMining
+                    ? 'p-1.5 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                    : `p-1.5 ${isActive ? 'bg-emerald-500/15 scale-110' : ''}`
                 }`}
               >
-<Icon
-  className={`transition-all duration-300 ${
-    id === 'mining'
-      ? 'w-7 h-7 text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.9)]'
-      : 'w-5 h-5'
-  }`}
-  strokeWidth={id === 'mining' ? 2.8 : isActive ? 2.5 : 2}
-/>
+                <Icon
+                  className={`transition-all duration-300 ${
+                    isMining
+                      ? 'w-7 h-7 text-emerald-400 drop-shadow-[0_0_7px_rgba(52,211,153,1)] animate-pulse'
+                      : 'w-5 h-5'
+                  }`}
+                  strokeWidth={isMining ? 2.8 : isActive ? 2.5 : 2}
+                />
               </span>
 
               <span
                 className={`text-[10px] ${
-                  isActive ? 'font-extrabold' : 'font-medium'
+                  isActive || isMining
+                    ? 'font-extrabold text-emerald-400'
+                    : 'font-medium'
                 }`}
               >
                 {label}
@@ -142,9 +149,6 @@ export default function BottomNavigation() {
               <span
                 className={`absolute top-0 h-0.5 rounded-full bg-emerald-400 transition-all ${
                   isActive ? 'w-6 opacity-100' : 'w-0 opacity-0'
-                  id === 'mining'
-  ? 'shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-  : ''
                 }`}
               />
             </button>
